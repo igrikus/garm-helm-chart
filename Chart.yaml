@@ -5,9 +5,6 @@ home: https://igrikus.github.io/garm-helm-chart
 sources:
   - https://github.com/igrikus/garm-helm-chart
   - https://github.com/cloudbase/garm
-
 type: application
-
-version: 0.1.0
-
-appVersion: "nightly@sha256:ed016672a8c7a4c096039796ea77a398ca9757fa6c5a17787634d96e3cb978df"
+version: 1.0.0
+appVersion: "1.0.0"
