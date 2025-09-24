@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ include "garm.fullname" . }}-init-pools-script"
+  labels:
+    {{- include "garm.labels" . | nindent 4 }}
+data:
+  init-pools.sh: |-
+    #!/bin/sh
+    set -e
+    echo "Configuring GARM pools"
+    
+
+    echo "Deleting existing pools for managed organizations before recreation"
+    {{- $orgNames := dict -}}
+    {{- range .Values.forges.gitea.pools -}}
+      {{- $_ := set $orgNames .orgName true -}}
+    {{- end -}}
+
+    {{- range $orgName, $_ := $orgNames }}
+      ORG_NAME="{{ $orgName }}"
+
+      echo "Deleting all pools in organization ${ORG_NAME}"
+      garm-cli pool list | grep "${ORG_NAME}" | awk '{print $2}' | while read -r POOL_ID; do
+        if [ -n "$POOL_ID" ]; then
+          echo "Deleting pool $POOL_ID from organization $ORG_NAME"
+          garm-cli pool delete "$POOL_ID"
+        fi
+      done
+    {{- end }}
+
+    echo "Creating new pools from values.yaml"
+    {{- if .Values.forges.gitea.pools }}
+    {{- range .Values.forges.gitea.pools }}
+    echo "Creating gitea pool for organization {{ .orgName }}"
+    ORG_NAME="{{ .orgName }}"
+    echo "Fetching ID for organization $ORG_NAME"
+    ORG_ID=$(garm-cli organization list | grep " ${ORG_NAME} " | awk '{print $2}')
+
+    if [ -z "$ORG_ID" ]; then
+      echo "Error: Could not find organization ID for $ORG_NAME. Aborting pool creation."
+      exit 1
+    fi
+    echo "Found organization ID $ORG_ID"
+
+    garm-cli pool add \
+      --org "$ORG_ID" \
+      --provider-name gcp \
+      --image "{{ .image }}" \
+      --flavor "{{ .flavor }}" \
+      {{- if hasKey . "minIdleRunners" }}
+      --min-idle-runners {{ .minIdleRunners }} \
+      {{- end }}
+      {{- if hasKey . "maxRunners" }}
+      --max-runners {{ .maxRunners }} \
+      {{- end }}
+      {{- if .tags }}
+      --tags "{{ join "," .tags }}" \
+      {{- end }}
+      {{- if .extraSpec }}
+      --extra-specs '{{ .extraSpec | toJson }}' \
+      {{- end }}
+      --enabled
+    {{- end }}
+    {{- end }}
+
+    

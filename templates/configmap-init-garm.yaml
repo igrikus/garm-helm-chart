@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ include "garm.fullname" . }}-init-garm-script"
+  labels:
+    {{- include "garm.labels" . | nindent 4 }}
+data:
+  init-garm.sh: |-
+    #!/bin/sh
+    set -e
+
+    INIT_MARKER="{{ include "garm.db-path" . }}/.initialized"
+    if [ -f "$INIT_MARKER" ]; then
+      echo "GARM DB already initialized, skipping DB init."
+      exit 0
+    fi
+
+    echo "Running GARM DB initialization for the first time..."
+    /bin/garm -config /etc/garm/config.toml &
+    GARM_PID=$!
+    sleep 5
+
+    garm-cli init \
+      --name "{{ include "garm.fullname" . }}" \
+      --url "http://localhost:{{ .Values.service.port }}" \
+      --callback-url "{{- if .Values.garm.callbackUrl }}{{ tpl .Values.garm.callbackUrl . }}{{- else }}{{ .Values.garm.url | trimSuffix "/" }}/api/v1/callbacks{{- end }}" \
+      --metadata-url "{{- if .Values.garm.metadataUrl }}{{ tpl .Values.garm.metadataUrl . }}{{- else }}{{ .Values.garm.url | trimSuffix "/" }}/api/v1/metadata{{- end }}" \
+      --webhook-url "{{- if .Values.garm.webhookUrl }}{{ tpl .Values.garm.webhookUrl . }}{{- else }}{{ .Values.garm.url | trimSuffix "/" }}/webhooks{{- end }}" \
+      --username "$GARM_ADMIN_USERNAME" \
+      --email "$GARM_ADMIN_EMAIL" \
+      --password "$GARM_ADMIN_PASSWORD"
+
+    echo "GARM DB initialization complete."
+    touch "$INIT_MARKER"
+
+    kill $GARM_PID

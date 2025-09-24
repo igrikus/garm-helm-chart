@@ -1,0 +1,145 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "garm.fullname" . }}
+  labels:
+    {{- include "garm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "garm.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "garm.labels" . | nindent 8 }}
+        app.kubernetes.io/component: server
+    spec:
+      serviceAccountName: {{ include "garm.serviceAccountName" . }}
+      volumes:
+        - name: garm-config
+          emptyDir: {}
+        {{- if .Values.persistence.enabled }}
+        - name: garm-db
+          persistentVolumeClaim:
+            claimName: {{ include "garm.fullname" . }}-db
+        {{- end }}
+        - name: config-templates
+          configMap:
+            name: "{{ include "garm.fullname" . }}-config"
+        - name: init-garm-script
+          configMap:
+            name: "{{ include "garm.fullname" . }}-init-garm-script"
+            defaultMode: 0755
+        {{- range .Values.providers }}
+        - name: provider-config-{{ .name }}
+          configMap:
+            name: {{ include "garm.fullname" $ }}-provider-{{ .name }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+
+      initContainers:
+        - name: substitute-config
+          image: envsubst/envsubst
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              envsubst < /config-templates/config.toml > /etc/garm/config.toml
+          env:
+            - name: GARM_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "garm.admin-secret-name" . }}
+                  key: {{ .Values.garm.admin.jwtSecretKey }}
+            - name: GARM_DB_PASSPHRASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "garm.admin-secret-name" . }}
+                  key: {{ .Values.garm.admin.dbPassphraseKey }}
+          {{- with .Values.resources.substituteConfig }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: garm-config
+              mountPath: /etc/garm
+            - name: config-templates
+              mountPath: /config-templates
+
+        - name: garm-init
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/init/init-garm.sh"]
+          env:
+            - name: GARM_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "garm.admin-secret-name" . }}
+                  key: {{ .Values.garm.admin.usernameKey }}
+            - name: GARM_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "garm.admin-secret-name" . }}
+                  key: {{ .Values.garm.admin.passwordKey }}
+            - name: GARM_ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "garm.admin-secret-name" . }}
+                  key: {{ .Values.garm.admin.emailKey }}
+          {{- with .Values.resources.configInit }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: garm-config
+              mountPath: /etc/garm
+            {{- if .Values.persistence.enabled }}
+            - name: garm-db
+              mountPath: {{ include "garm.db-path" . }}
+            {{- end }}
+            - name: init-garm-script
+              mountPath: /init/init-garm.sh
+              subPath: init-garm.sh
+            {{- range .Values.providers }}
+            - name: provider-config-{{ .name }}
+              mountPath: "/etc/garm/provider-configs/garm-provider-{{ .name }}.toml"
+              subPath: "garm-provider-{{ .name }}.toml"
+              readOnly: true
+            {{- end }}
+
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: garm-config
+              mountPath: /etc/garm
+            {{- if .Values.persistence.enabled }}
+            - name: garm-db
+              mountPath: {{ include "garm.db-path" . }}
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- range .Values.providers }}
+            - name: provider-config-{{ .name }}
+              mountPath: "/etc/garm/provider-configs/garm-provider-{{ .name }}.toml"
+              subPath: "garm-provider-{{ .name }}.toml"
+              readOnly: true
+            {{- end }}
+          {{- with .Values.resources.garm }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
