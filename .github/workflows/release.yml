@@ -1,34 +1,56 @@
-name: "Publish Helm Chart to OCI"
+name: "Release and Publish Helm Chart"
 
 on:
   push:
     branches:
-      - main
+      - "main"
 
 jobs:
-  publish:
+  release:
     permissions:
-      contents: read
-      packages: write
-    runs-on: ubuntu-latest
+      contents: "write"
+      issues: "write"
+      pull-requests: "write"
+    runs-on: "ubuntu-latest"
+    outputs:
+      new_release_published: "${{ steps.semantic.outputs.new_release_published }}"
+      new_release_version: "${{ steps.semantic.outputs.new_release_version }}"
     steps:
       - name: "Checkout"
-        uses: actions/checkout@v4
+        uses: "actions/checkout@v4"
         with:
           fetch-depth: 0
 
-      - name: "Get Chart version"
-        id: "chart-version"
-        run: |
-          chart_version=$(grep '^version:' Chart.yaml | awk '{print $2}')
-          echo "chart_version=$chart_version" >> $GITHUB_OUTPUT
+      - name: "Semantic Release"
+        id: semantic
+        uses: "cycjimmy/semantic-release-action@v4"
+        with:
+          extra_plugins: |
+            @semantic-release/exec
+            @semantic-release/git
+            @semantic-release/github
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+  publish:
+    needs: release
+    if: "needs.release.outputs.new_release_published == 'true'"
+    permissions:
+      contents: "read"
+      packages: "write"
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Checkout"
+        uses: "actions/checkout@v4"
+        with:
+          ref: "v${{ needs.release.outputs.new_release_version }}"
 
       - name: "Publish Helm Chart to OCI"
-        uses: appany/helm-oci-chart-releaser@v0.5.0
+        uses: "appany/helm-oci-chart-releaser@v0.5.0"
         with:
           name: "garm"
           repository: "${{ github.repository_owner }}"
-          tag: ${{ steps.chart-version.outputs.chart_version }}
+          tag: "${{ needs.release.outputs.new_release_version }}"
           path: "."
           registry: "ghcr.io"
           registry_username: "${{ github.actor }}"
