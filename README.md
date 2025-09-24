@@ -2,7 +2,8 @@
 
 This Helm chart deploys [GARM (GitHub/Gitea Actions Runner Manager)](https://github.com/cloudbase/garm) on a Kubernetes cluster.
 
-> **Note:** This is an unofficial Helm chart and is not affiliated with the GARM project. Please do not open issues regarding this chart in the official GARM repository.
+> [!NOTE]
+> This is an unofficial Helm chart and is not affiliated with the GARM project. Please do not open issues regarding this chart in the official GARM repository.
 
 ## Chart Status & Expectations
 
@@ -18,17 +19,10 @@ This chart uses an operator-like pattern, launching two pods:
 
 ## Installation
 
-> This chart is not yet available on a public chart repository like Artifact Hub.
-
-1.  Clone this repository:
+1.  Create a copy of `values.yaml` (e.g., `my-values.yaml`) and customize it for your environment.
+2.  Install the chart:
     ```bash
-    git clone <repository-url>
-    cd garm-helm-chart
-    ```
-2.  Create a copy of `values.yaml` (e.g., `my-values.yaml`) and customize it for your environment.
-3.  Install the chart:
-    ```bash
-    helm install -f my-values.yaml my-garm .
+    helm install -f my-values.yaml my-garm oci://ghcr.io/igrikus/garm
     ```
 
 ## Configuration
@@ -60,14 +54,14 @@ When you create a pull request, please make sure your commit messages are struct
 
 **Common commit types:**
 
-*   **feat**: A new feature. (Triggers a `minor` version release)
-*   **fix**: A bug fix. (Triggers a `patch` version release)
-*   **docs**: Documentation only changes. (No release)
-*   **style**: Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc). (No release)
-*   **refactor**: A code change that neither fixes a bug nor adds a feature. (No release)
-*   **perf**: A code change that improves performance. (No release)
-*   **test**: Adding missing tests or correcting existing tests. (No release)
-*   **chore**: Changes to the build process or auxiliary tools and libraries such as documentation generation. (No release)
+- **feat**: A new feature. (Triggers a `minor` version release)
+- **fix**: A bug fix. (Triggers a `patch` version release)
+- **docs**: Documentation only changes. (No release)
+- **style**: Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc). (No release)
+- **refactor**: A code change that neither fixes a bug nor adds a feature. (No release)
+- **perf**: A code change that improves performance. (No release)
+- **test**: Adding missing tests or correcting existing tests. (No release)
+- **chore**: Changes to the build process or auxiliary tools and libraries such as documentation generation. (No release)
 
 To indicate a **breaking change** (which triggers a `major` version release), add a `!` after the type (e.g., `feat!:`) or include `BREAKING CHANGE:` in the commit message footer.
 
