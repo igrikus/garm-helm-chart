@@ -1,0 +1,35 @@
+name: "Publish Helm Chart to OCI"
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  publish:
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Get Chart version"
+        id: "chart-version"
+        run: |
+          chart_version=$(grep '^version:' Chart.yaml | awk '{print $2}')
+          echo "chart_version=$chart_version" >> $GITHUB_OUTPUT
+
+      - name: "Publish Helm Chart to OCI"
+        uses: appany/helm-oci-chart-releaser@v0.5.0
+        with:
+          name: "garm"
+          repository: "${{ github.repository_owner }}"
+          tag: ${{ steps.chart-version.outputs.chart_version }}
+          path: "."
+          registry: "ghcr.io"
+          registry_username: "${{ github.actor }}"
+          registry_password: "${{ secrets.GITHUB_TOKEN }}"

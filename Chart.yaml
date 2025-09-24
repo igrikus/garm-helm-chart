@@ -1,6 +1,10 @@
 apiVersion: v2
 name: garm
 description: GARM (Github/Gitea Actions Runner Manager) Helm Chart
+home: https://igrikus.github.io/garm-helm-chart
+sources:
+  - https://github.com/igrikus/garm-helm-chart
+  - https://github.com/cloudbase/garm
 
 type: application
 
