@@ -1,6 +1,7 @@
 apiVersion: v2
 name: garm
 description: GARM (Github/Gitea Actions Runner Manager) Helm Chart
+icon: "https://raw.githubusercontent.com/cloudbase/garm/refs/heads/main/doc/images/garm-dark.svg"
 sources:
   - https://github.com/igrikus/garm-helm-chart
   - https://github.com/cloudbase/garm
