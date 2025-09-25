@@ -45,30 +45,46 @@ Contributions are highly welcome! This project uses `semantic-release` to automa
 When you create a pull request, please make sure your commit messages are structured as follows:
 
 ```
-<type>[optional scope]: <description>
+<type>([optional scope]): <description>
 
 [optional body]
-
-[optional footer(s)]
 ```
 
 **Common commit types:**
 
-- **feat**: A new feature. (Triggers a `minor` version release)
 - **fix**: A bug fix. (Triggers a `patch` version release)
+- **feat**: A new feature. (Triggers a `minor` version release)
 - **docs**: Documentation only changes. (No release)
-- **style**: Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc). (No release)
 - **refactor**: A code change that neither fixes a bug nor adds a feature. (No release)
-- **perf**: A code change that improves performance. (No release)
 - **test**: Adding missing tests or correcting existing tests. (No release)
 - **chore**: Changes to the build process or auxiliary tools and libraries such as documentation generation. (No release)
 
 To indicate a **breaking change** (which triggers a `major` version release), add a `!` after the type (e.g., `feat!:`) or include `BREAKING CHANGE:` in the commit message footer.
 
-**Example:**
+**Examples:**
+
+No release
 
 ```
-feat: Add option to configure runner liveness probe
+chore: change build process
+```
+
+`patch` release
+
+```
+fix: added icon
+```
+
+`minor` release
+
+```
+feat(server): Add option to configure liveness probe
+```
+
+`major` release
+
+```
+feat!: breaking change for pool creation logic
 ```
 
 Following this convention is crucial as it directly controls the versioning and release notes for the chart.
