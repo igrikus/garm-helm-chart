@@ -228,3 +228,7 @@ providers: []
   #     network_id: "projects/my-project/global/networks/default"
   #     subnetwork_id: "projects/my-project/regions/us-central1/subnetworks/default"
   #     external_ip_access: true
+
+## -- Array of extra objects to deploy with the release
+## -- It can be in "string" or "object" format
+extraManifests: []
