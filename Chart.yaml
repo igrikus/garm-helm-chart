@@ -7,4 +7,4 @@ sources:
   - https://github.com/cloudbase/garm
 type: application
 version: 1.1.0
-appVersion: "nightly@sha256:ed016672a8c7a4c096039796ea77a398ca9757fa6c5a17787634d96e3cb978df"
+appVersion: "nightly@sha256:61091b2701e2746f341aeb9b7cf2b7d67f32eb12b67ab49ce988f791fe2a966f"
