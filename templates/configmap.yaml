@@ -26,9 +26,15 @@ data:
     [apiserver]
       bind = "0.0.0.0"
       port = {{ .Values.service.port }}
-      use_tls = false
+      use_tls = {{ .Values.garm.tls.enabled | default false }}
       [apiserver.webui]
         enable = {{ .Values.garm.ui.enabled }}
+
+    {{- if .Values.garm.tls.enabled }}
+    [apiserver.tls]
+      certificate = "{{ .Values.garm.tls.certPath }}"
+      key = "{{ .Values.garm.tls.keyPath }}"
+    {{- end }}
 
     [database]
       backend = "sqlite3"

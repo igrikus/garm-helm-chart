@@ -33,6 +33,20 @@ garm:
   ## -- Specify webhook URL (with correct URI path). If empty, garm.url will be used.
   webhookUrl: ""
 
+  ## -- TLS configuration for the GARM API server.
+  ## -- This is optional. A reverse proxy or Ingress with TLS termination can be used instead.
+  ## -- If enabled, you must provide a secret containing the TLS certificate and key
+  ## -- and mount it using extraVolumes and extraVolumeMounts.
+  tls:
+    enabled: false
+    ## -- In-container path to the TLS certificate file.
+    ## -- NOTE: If your certificate is signed by an intermediary CA, this file
+    ## -- must contain the entire certificate bundle.
+    ## -- See: https://github.com/cloudbase/garm/blob/main/doc/config.md#the-api-server-config-section
+    certPath: ""
+    ## -- In-container path to the TLS key file.
+    keyPath: ""
+
 ## -- Image configuration for GARM and its components.
 image:
   ## -- GARM image repository.

@@ -13,6 +13,10 @@ data:
     # The profile is stored on an emptyDir volume, so it does not persist across pod restarts.
     garm-cli profile add \
       --name "{{ include "garm.fullname" . }}" \
+{{- if .Values.garm.tls.enabled }}
+      --url "{{ .Values.garm.url }}" \
+{{- else }}
       --url "http://{{ include "garm.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}" \
+{{- end }}
       --username "$GARM_ADMIN_USERNAME" \
       --password "$GARM_ADMIN_PASSWORD"
