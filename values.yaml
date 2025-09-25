@@ -194,7 +194,6 @@ forges:
       #     custom_labels:
       #       my-custom-label: "my-value"
       #     disable_updates: true
-      #     runner_install_template: ""
 
   ## -- GitHub server configurations.
   github:
