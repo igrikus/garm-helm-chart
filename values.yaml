@@ -163,12 +163,17 @@ runnerTemplates: []
   ## -- NOTE: The name must be a valid RFC 1123 subdomain name (e.g., 'my-template').
   ## -- It can only contain lowercase letters, numbers, and hyphens (-).
   ## -- Underscores (_) are not allowed as the name is used for Kubernetes resources.
-  # - name: "linux_cache_server"
+  # - name: "linux-cache-server"
   #   description: "Configuring external cache server before runner is started"
   #   forgeType: "gitea" # or github
   #   osType: "linux"
-  #   ## -- Path to the file with the template content, relative to the chart root.
-  #   path: "resources/runner-template.sh.tpl"
+  #   ## -- The content of the runner template script.
+  #   ## -- You can provide the content directly as a multi-line string:
+  #   ## -- Or you can use 'helm --set-file' to load the content from a file:
+  #   ## -- helm install --set-file "runnerTemplates[0].content=./path/to/your/script.sh"
+  #   content: |
+  #     #!/bin/bash
+  #     echo "Your script below"
 
 ## -- Configuration for different git forges.
 forges:
