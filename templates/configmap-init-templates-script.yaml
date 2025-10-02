@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ include "garm.fullname" . }}-init-templates-script"
+  labels:
+    {{- include "garm.labels" . | nindent 4 }}
+data:
+  init-templates.sh: |-
+    #!/bin/sh
+    set -e
+    echo "Configuring GARM templates"
+
+    {{- if .Values.runnerTemplates }}
+    {{- range .Values.runnerTemplates }}
+    TEMPLATE_NAME="{{ .name }}"
+    if ! garm-cli template list | grep -wq "${TEMPLATE_NAME}"; then
+      echo "Creating template ${TEMPLATE_NAME}"
+      garm-cli template create \
+        --name "{{ .name }}" \
+        --forge-type "{{ .forgeType }}" \
+        --os-type "{{ .osType }}" \
+        {{- if .description }}
+        --description "{{ .description }}" \
+        {{- end }}
+        --path "/garm-templates/{{ .name }}/template"
+    else
+      echo "Template ${TEMPLATE_NAME} already exists."
+    fi
+    {{- end }}
+    {{- end }}
+

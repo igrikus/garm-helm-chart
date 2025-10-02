@@ -156,6 +156,20 @@ persistence:
   ## -- The size of the PVC.
   size: 1Gi
 
+## -- A list of runner templates to create.
+## -- NOTE: If you deploy templates and then remove this field then templates will NOT be deleted from GARM server.
+## -- This is because templates might be in use by runner pools and tracking all dependencies is not feasible.
+runnerTemplates: []
+  ## -- NOTE: The name must be a valid RFC 1123 subdomain name (e.g., 'my-template').
+  ## -- It can only contain lowercase letters, numbers, and hyphens (-).
+  ## -- Underscores (_) are not allowed as the name is used for Kubernetes resources.
+  # - name: "linux_cache_server"
+  #   description: "Configuring external cache server before runner is started"
+  #   forgeType: "gitea" # or github
+  #   osType: "linux"
+  #   ## -- Path to the file with the template content, relative to the chart root.
+  #   path: "resources/runner-template.sh.tpl"
+
 ## -- Configuration for different git forges.
 forges:
   ## -- Gitea server configurations.
@@ -176,6 +190,8 @@ forges:
       #   credName: "my-gitea"
 
     ## -- A list of Gitea runner pools to create.
+    ## -- Pools are re-created on every deployment (e.g helm upgrade) to always match the configuration.
+    ## -- NOTE: Before re-deploying make sure that this pool does not have any runners, otherwise you will get an error.
     pools: []
       ## -- Reference to organization from the 'organizations' list above.
       # - orgName: "MyGiteaOrg"
@@ -194,6 +210,8 @@ forges:
       #     custom_labels:
       #       my-custom-label: "my-value"
       #     disable_updates: true
+      #   ## -- The name or ID of the runner install template to use for this pool.
+      #   runnerInstallTemplate: ""
 
   ## -- GitHub server configurations.
   github:

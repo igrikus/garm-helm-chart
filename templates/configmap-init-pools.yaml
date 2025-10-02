@@ -60,6 +60,9 @@ data:
       {{- if .extraSpec }}
       --extra-specs '{{ .extraSpec | toJson }}' \
       {{- end }}
+      {{- if .runnerInstallTemplate }}
+      --runner-install-template "{{ .runnerInstallTemplate }}" \
+      {{- end }}
       --enabled
     {{- end }}
     {{- end }}

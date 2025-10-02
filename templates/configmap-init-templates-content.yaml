@@ -1,0 +1,17 @@
+{{- if .Values.runnerTemplates }}
+{{- range .Values.runnerTemplates }}
+{{- if not .path }}
+{{- fail (printf "runnerTemplate %q is missing a 'path' attribute." .name) }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ include "garm.fullname" $ }}-template-content-{{ .name }}"
+  labels:
+    {{- include "garm.labels" $ | nindent 4 }}
+data:
+  template: |-
+{{ $.Files.Get .path | indent 4 }}
+{{- end }}
+{{- end }}

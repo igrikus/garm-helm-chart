@@ -37,6 +37,10 @@ spec:
           configMap:
             name: "{{ include "garm.fullname" . }}-init-pools-script"
             defaultMode: 0755
+        - name: init-templates-script
+          configMap:
+            name: "{{ include "garm.fullname" . }}-init-templates-script"
+            defaultMode: 0755
         {{- if .Values.forges.gitea.credentials }}
         {{- range .Values.forges.gitea.credentials }}
         - name: gitea-secret-{{ .name }}
@@ -49,6 +53,13 @@ spec:
         - name: github-secret-{{ .name }}
           secret:
             secretName: {{ .secretName }}
+        {{- end }}
+        {{- end }}
+        {{- if .Values.runnerTemplates }}
+        {{- range .Values.runnerTemplates }}
+        - name: template-content-{{ .name }}
+          configMap:
+            name: "{{ include "garm.fullname" $ }}-template-content-{{ .name }}"
         {{- end }}
         {{- end }}
       initContainers:
@@ -77,6 +88,28 @@ spec:
             - name: init-profile-script
               mountPath: /init/init-profile.sh
               subPath: init-profile.sh
+
+        - name: garm-templates
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/init/init-templates.sh"]
+          {{- with .Values.resources.configInit }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: garm-cli-auth
+              mountPath: /root/.local/share/garm-cli
+            - name: init-templates-script
+              mountPath: /init/init-templates.sh
+              subPath: init-templates.sh
+            {{- if .Values.runnerTemplates }}
+            {{- range .Values.runnerTemplates }}
+            - name: template-content-{{ .name }}
+              mountPath: /garm-templates/{{ .name }}
+              readOnly: true
+            {{- end }}
+            {{- end }}
 
         - name: garm-credentials
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
