@@ -86,6 +86,9 @@ service:
   port: 9997
   annotations: {}
 
+## -- Deployment strategy type.
+strategyType: "RollingUpdate"
+
 ## -- Ingress configuration.
 ingress:
   ## -- Enable or disable the Ingress resource.
