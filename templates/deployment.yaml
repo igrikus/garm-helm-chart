@@ -73,6 +73,9 @@ spec:
               mountPath: /etc/garm
             - name: config-templates
               mountPath: /config-templates
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
 
         - name: garm-init
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
@@ -108,6 +111,9 @@ spec:
             - name: init-garm-script
               mountPath: /init/init-garm.sh
               subPath: init-garm.sh
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
             {{- range .Values.providers }}
             - name: provider-config-{{ .name }}
               mountPath: "/etc/garm/provider-configs/garm-provider-{{ .name }}.toml"
