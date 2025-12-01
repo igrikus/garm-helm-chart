@@ -13,7 +13,6 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "garm.labels" . | nindent 8 }}
         app.kubernetes.io/component: operator
     spec:
       restartPolicy: OnFailure
