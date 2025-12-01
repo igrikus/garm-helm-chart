@@ -22,7 +22,11 @@ data:
 
     garm-cli init \
       --name "{{ include "garm.fullname" . }}" \
+{{- if .Values.garm.tls.enabled }}
+      --url "{{ .Values.garm.url }}" \
+{{- else }}
       --url "http://localhost:{{ .Values.service.port }}" \
+{{- end }}
       --callback-url "{{- if .Values.garm.callbackUrl }}{{ tpl .Values.garm.callbackUrl . }}{{- else }}{{ .Values.garm.url | trimSuffix "/" }}/api/v1/callbacks{{- end }}" \
       --metadata-url "{{- if .Values.garm.metadataUrl }}{{ tpl .Values.garm.metadataUrl . }}{{- else }}{{ .Values.garm.url | trimSuffix "/" }}/api/v1/metadata{{- end }}" \
       --webhook-url "{{- if .Values.garm.webhookUrl }}{{ tpl .Values.garm.webhookUrl . }}{{- else }}{{ .Values.garm.url | trimSuffix "/" }}/webhooks{{- end }}" \

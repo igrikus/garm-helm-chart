@@ -21,6 +21,22 @@ spec:
         {{- include "garm.labels" . | nindent 8 }}
         app.kubernetes.io/component: server
     spec:
+      {{- if and .Values.garm.tls.enabled .Values.garm.url }}
+      # The hostAlias below is added to solve a chicken-and-egg problem
+      # during the GARM DB initialization process when TLS is enabled.
+      # The garm-init container starts a local GARM server and then tries
+      # to connect to it using the public URL to perform the initialization.
+      # Without this alias, connecting to the public URL would require a
+      # working service/ingress, but the pod is not "Ready" yet because
+      # the init container is still running.
+      # This alias forces the public hostname to resolve to 127.0.0.1 within
+      # the pod, allowing the garm-cli to connect to the local GARM server
+      # while still using the public hostname for TLS certificate validation.
+      hostAliases:
+      - ip: "127.0.0.1"
+        hostnames:
+        - {{ (urlParse .Values.garm.url).hostname | quote }}
+      {{- end }}
       serviceAccountName: {{ include "garm.serviceAccountName" . }}
       volumes:
         - name: garm-config
