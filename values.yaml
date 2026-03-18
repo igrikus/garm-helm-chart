@@ -73,7 +73,7 @@ serviceAccount:
   ## -- If not set and create is true, a name is generated using the fullname template.
   name: ""
 
-## -- Annotations for the Pod.
+## -- Annotations for both the server and operator Pods.
 podAnnotations: {}
 ## -- Labels for the Pod.
 podLabels: {}
