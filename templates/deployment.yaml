@@ -22,6 +22,9 @@ spec:
       labels:
         {{- include "garm.labels" . | nindent 8 }}
         app.kubernetes.io/component: server
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       {{- if and .Values.garm.tls.enabled .Values.garm.url }}
       # The hostAlias below is added to solve a chicken-and-egg problem

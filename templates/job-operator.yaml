@@ -18,6 +18,9 @@ spec:
       {{- end }}
       labels:
         app.kubernetes.io/component: operator
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       restartPolicy: OnFailure
       serviceAccountName: {{ include "garm.serviceAccountName" . }}

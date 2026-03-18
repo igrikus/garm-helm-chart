@@ -75,7 +75,7 @@ serviceAccount:
 
 ## -- Annotations for both the server and operator Pods.
 podAnnotations: {}
-## -- Labels for the Pod.
+## -- Labels for both the server and operator Pods.
 podLabels: {}
 
 ## -- Service configuration.
