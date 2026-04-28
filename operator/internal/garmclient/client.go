@@ -51,6 +51,16 @@ type Interface interface {
 	GetOrg(ctx context.Context, id string) (*garmparams.Organization, error)
 	UpdateOrg(ctx context.Context, id string, in OrgUpdate) error
 	DeleteOrg(ctx context.Context, id string) error
+
+	// Pools (org-scoped today; repo/enterprise added in Phase 5).
+	CreateOrgPool(ctx context.Context, orgID string, in PoolCreate) (string, error)
+	GetPool(ctx context.Context, id string) (*garmparams.Pool, error)
+	UpdatePool(ctx context.Context, id string, in PoolUpdate) error
+	DeletePool(ctx context.Context, id string) error
+	ListPoolInstances(ctx context.Context, poolID string) ([]garmparams.Instance, error)
+
+	// Instances.
+	DeleteInstance(ctx context.Context, name string, force bool) error
 }
 
 // Config sources auth from env. BaseURL is the GARM HTTP root (e.g.

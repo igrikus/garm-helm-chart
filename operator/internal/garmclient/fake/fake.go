@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 
+	commonparams "github.com/cloudbase/garm-provider-common/params"
 	garmparams "github.com/cloudbase/garm/params"
 
 	"github.com/igrikus/garm-helm-chart/operator/internal/garmclient"
@@ -32,8 +33,11 @@ type Client struct {
 	Endpoints     map[string]garmparams.ForgeEndpoint
 	Credentials   map[int64]garmparams.ForgeCredentials
 	Orgs          map[string]garmparams.Organization
+	Pools         map[string]garmparams.Pool
+	Instances     map[string][]garmparams.Instance // keyed by pool ID
 	nextCredID    int64
 	nextOrgID     int
+	nextPoolID    int
 	CreateOrgFail bool // toggle for negative tests
 }
 
@@ -42,6 +46,8 @@ func New() *Client {
 		Endpoints:   map[string]garmparams.ForgeEndpoint{},
 		Credentials: map[int64]garmparams.ForgeCredentials{},
 		Orgs:        map[string]garmparams.Organization{},
+		Pools:       map[string]garmparams.Pool{},
+		Instances:   map[string][]garmparams.Instance{},
 	}
 }
 
@@ -165,4 +171,127 @@ func (c *Client) DeleteOrg(_ context.Context, id string) error {
 	}
 	delete(c.Orgs, id)
 	return nil
+}
+
+func tagsFromStrings(in []string) []garmparams.Tag {
+	out := make([]garmparams.Tag, 0, len(in))
+	for _, t := range in {
+		out = append(out, garmparams.Tag{Name: t})
+	}
+	return out
+}
+
+func (c *Client) CreateOrgPool(_ context.Context, orgID string, in garmclient.PoolCreate) (string, error) {
+	if _, ok := c.Orgs[orgID]; !ok {
+		return "", &notFound{what: "org " + orgID}
+	}
+	c.nextPoolID++
+	id := fmt.Sprintf("pool-%d", c.nextPoolID)
+	c.Pools[id] = garmparams.Pool{
+		ID:                     id,
+		ProviderName:           in.ProviderName,
+		MaxRunners:             in.MaxRunners,
+		MinIdleRunners:         in.MinIdleRunners,
+		Image:                  in.Image,
+		Flavor:                 in.Flavor,
+		OSType:                 commonparams.OSType(in.OSType),
+		OSArch:                 commonparams.OSArch(in.OSArch),
+		Tags:                   tagsFromStrings(in.Tags),
+		Enabled:                in.Enabled,
+		RunnerBootstrapTimeout: in.RunnerBootstrapTimeout,
+		ExtraSpecs:             in.ExtraSpecs,
+		GitHubRunnerGroup:      in.GitHubRunnerGroup,
+		Priority:               in.Priority,
+		OrgID:                  orgID,
+		RunnerPrefix:           garmparams.RunnerPrefix{Prefix: in.RunnerPrefix},
+	}
+	return id, nil
+}
+
+func (c *Client) GetPool(_ context.Context, id string) (*garmparams.Pool, error) {
+	p, ok := c.Pools[id]
+	if !ok {
+		return nil, &notFound{what: "pool " + id}
+	}
+	return &p, nil
+}
+
+func (c *Client) UpdatePool(_ context.Context, id string, in garmclient.PoolUpdate) error {
+	p, ok := c.Pools[id]
+	if !ok {
+		return &notFound{what: "pool " + id}
+	}
+	if in.Enabled != nil {
+		p.Enabled = *in.Enabled
+	}
+	if in.MaxRunners != nil {
+		p.MaxRunners = *in.MaxRunners
+	}
+	if in.MinIdleRunners != nil {
+		p.MinIdleRunners = *in.MinIdleRunners
+	}
+	if in.RunnerBootstrapTimeout != nil {
+		p.RunnerBootstrapTimeout = *in.RunnerBootstrapTimeout
+	}
+	if in.Image != nil {
+		p.Image = *in.Image
+	}
+	if in.Flavor != nil {
+		p.Flavor = *in.Flavor
+	}
+	if in.OSType != nil {
+		p.OSType = commonparams.OSType(*in.OSType)
+	}
+	if in.OSArch != nil {
+		p.OSArch = commonparams.OSArch(*in.OSArch)
+	}
+	if in.Tags != nil {
+		p.Tags = tagsFromStrings(in.Tags)
+	}
+	if in.ExtraSpecs != nil {
+		p.ExtraSpecs = in.ExtraSpecs
+	}
+	if in.GitHubRunnerGroup != nil {
+		p.GitHubRunnerGroup = *in.GitHubRunnerGroup
+	}
+	if in.RunnerPrefix != nil {
+		p.RunnerPrefix = garmparams.RunnerPrefix{Prefix: *in.RunnerPrefix}
+	}
+	if in.Priority != nil {
+		p.Priority = *in.Priority
+	}
+	c.Pools[id] = p
+	return nil
+}
+
+func (c *Client) DeletePool(_ context.Context, id string) error {
+	if _, ok := c.Pools[id]; !ok {
+		return &notFound{what: "pool " + id}
+	}
+	delete(c.Pools, id)
+	delete(c.Instances, id)
+	return nil
+}
+
+func (c *Client) ListPoolInstances(_ context.Context, poolID string) ([]garmparams.Instance, error) {
+	return c.Instances[poolID], nil
+}
+
+func (c *Client) DeleteInstance(_ context.Context, name string, _ bool) error {
+	for poolID, list := range c.Instances {
+		filtered := list[:0]
+		removed := false
+		for _, i := range list {
+			if i.Name == name {
+				removed = true
+				continue
+			}
+			filtered = append(filtered, i)
+		}
+		if removed {
+			c.Instances[poolID] = filtered
+			return nil
+		}
+	}
+	return &notFound{what: "instance " + name}
 }
