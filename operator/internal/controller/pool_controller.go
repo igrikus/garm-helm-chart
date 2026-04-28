@@ -25,12 +25,14 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	garmv1alpha1 "github.com/igrikus/garm-helm-chart/operator/api/v1alpha1"
+	"github.com/igrikus/garm-helm-chart/operator/internal/garmclient"
 )
 
 // PoolReconciler reconciles a Pool object
 type PoolReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Garm   garmclient.Interface
 }
 
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=pools,verbs=get;list;watch;create;update;patch;delete

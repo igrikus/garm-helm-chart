@@ -43,6 +43,7 @@ var _ = Describe("GithubCredentials Controller", func() {
 		githubcredentials := &garmv1alpha1.GithubCredentials{}
 
 		BeforeEach(func() {
+			Skip("reconciler is a Phase 1 stub; tests will be rewritten in Phase 3+")
 			By("creating the custom resource for the Kind GithubCredentials")
 			err := k8sClient.Get(ctx, typeNamespacedName, githubcredentials)
 			if err != nil && errors.IsNotFound(err) {

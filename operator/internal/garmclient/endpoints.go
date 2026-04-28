@@ -1,0 +1,98 @@
+/*
+Copyright 2026 Igor Kachurin.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+*/
+
+package garmclient
+
+import (
+	"context"
+
+	"github.com/cloudbase/garm/client/endpoints"
+	garmparams "github.com/cloudbase/garm/params"
+	"github.com/go-openapi/runtime"
+)
+
+// GiteaEndpointSpec is the wrapper-internal request shape, decoupled from
+// generated parameter structs so reconcilers don't import go-swagger types.
+type GiteaEndpointSpec struct {
+	Name         string
+	Description  string
+	APIBaseURL   string
+	BaseURL      string
+	CACertBundle []byte
+}
+
+func (c *Client) CreateGiteaEndpoint(ctx context.Context, in GiteaEndpointSpec) (string, error) {
+	var name string
+	err := c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
+		resp, err := c.api.Endpoints.CreateGiteaEndpoint(&endpoints.CreateGiteaEndpointParams{
+			Context: ctx,
+			Body: garmparams.CreateGiteaEndpointParams{
+				Name:         in.Name,
+				Description:  in.Description,
+				APIBaseURL:   in.APIBaseURL,
+				BaseURL:      in.BaseURL,
+				CACertBundle: in.CACertBundle,
+			},
+		}, auth)
+		if err != nil {
+			return err
+		}
+		name = resp.Payload.Name
+		return nil
+	})
+	return name, err
+}
+
+func (c *Client) GetGiteaEndpoint(ctx context.Context, name string) (*garmparams.ForgeEndpoint, error) {
+	var out garmparams.ForgeEndpoint
+	err := c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
+		resp, err := c.api.Endpoints.GetGiteaEndpoint(&endpoints.GetGiteaEndpointParams{
+			Context: ctx,
+			Name:    name,
+		}, auth)
+		if err != nil {
+			return err
+		}
+		out = resp.Payload
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) UpdateGiteaEndpoint(ctx context.Context, name string, in GiteaEndpointSpec) error {
+	desc := in.Description
+	apiURL := in.APIBaseURL
+	baseURL := in.BaseURL
+	return c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
+		_, err := c.api.Endpoints.UpdateGiteaEndpoint(&endpoints.UpdateGiteaEndpointParams{
+			Context: ctx,
+			Name:    name,
+			Body: garmparams.UpdateGiteaEndpointParams{
+				Description:  &desc,
+				APIBaseURL:   &apiURL,
+				BaseURL:      &baseURL,
+				CACertBundle: in.CACertBundle,
+			},
+		}, auth)
+		return err
+	})
+}
+
+func (c *Client) DeleteGiteaEndpoint(ctx context.Context, name string) error {
+	return c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
+		return c.api.Endpoints.DeleteGiteaEndpoint(&endpoints.DeleteGiteaEndpointParams{
+			Context: ctx,
+			Name:    name,
+		}, auth)
+	})
+}

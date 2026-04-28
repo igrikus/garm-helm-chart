@@ -25,12 +25,14 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	garmv1alpha1 "github.com/igrikus/garm-helm-chart/operator/api/v1alpha1"
+	"github.com/igrikus/garm-helm-chart/operator/internal/garmclient"
 )
 
 // RepositoryReconciler reconciles a Repository object
 type RepositoryReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Garm   garmclient.Interface
 }
 
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=repositories,verbs=get;list;watch;create;update;patch;delete

@@ -37,6 +37,7 @@ import (
 
 	garmv1alpha1 "github.com/igrikus/garm-helm-chart/operator/api/v1alpha1"
 	"github.com/igrikus/garm-helm-chart/operator/internal/controller"
+	"github.com/igrikus/garm-helm-chart/operator/internal/garmclient"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -154,6 +155,17 @@ func main() {
 		metricsServerOptions.KeyName = metricsCertKey
 	}
 
+	garmCfg, err := garmclient.ConfigFromEnv()
+	if err != nil {
+		setupLog.Error(err, "GARM config invalid")
+		os.Exit(1)
+	}
+	garm, err := garmclient.New(garmCfg)
+	if err != nil {
+		setupLog.Error(err, "Failed to initialise GARM client")
+		os.Exit(1)
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsServerOptions,
@@ -181,6 +193,7 @@ func main() {
 	if err := (&controller.GiteaEndpointReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Garm:   garm,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "GiteaEndpoint")
 		os.Exit(1)
@@ -188,6 +201,7 @@ func main() {
 	if err := (&controller.GithubEndpointReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Garm:   garm,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "GithubEndpoint")
 		os.Exit(1)
@@ -195,6 +209,7 @@ func main() {
 	if err := (&controller.GiteaCredentialsReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Garm:   garm,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "GiteaCredentials")
 		os.Exit(1)
@@ -202,6 +217,7 @@ func main() {
 	if err := (&controller.GithubCredentialsReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Garm:   garm,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "GithubCredentials")
 		os.Exit(1)
@@ -209,6 +225,7 @@ func main() {
 	if err := (&controller.GiteaOrganizationReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Garm:   garm,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "GiteaOrganization")
 		os.Exit(1)
@@ -216,6 +233,7 @@ func main() {
 	if err := (&controller.RepositoryReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Garm:   garm,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "Repository")
 		os.Exit(1)
@@ -223,6 +241,7 @@ func main() {
 	if err := (&controller.EnterpriseReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Garm:   garm,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "Enterprise")
 		os.Exit(1)
@@ -230,6 +249,7 @@ func main() {
 	if err := (&controller.ImageReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Garm:   garm,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "Image")
 		os.Exit(1)
@@ -237,6 +257,7 @@ func main() {
 	if err := (&controller.PoolReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Garm:   garm,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "Pool")
 		os.Exit(1)
@@ -244,6 +265,7 @@ func main() {
 	if err := (&controller.RunnerReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Garm:   garm,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "Runner")
 		os.Exit(1)
