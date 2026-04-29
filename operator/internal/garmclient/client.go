@@ -53,6 +53,7 @@ type Interface interface {
 	DeleteOrg(ctx context.Context, id string) error
 
 	// Pools (org-scoped today; repo/enterprise added in Phase 5).
+	ListOrgPools(ctx context.Context, orgID string) ([]garmparams.Pool, error)
 	CreateOrgPool(ctx context.Context, orgID string, in PoolCreate) (string, error)
 	GetPool(ctx context.Context, id string) (*garmparams.Pool, error)
 	UpdatePool(ctx context.Context, id string, in PoolUpdate) error

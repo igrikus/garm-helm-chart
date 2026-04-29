@@ -208,6 +208,19 @@ func (c *Client) CreateOrgPool(_ context.Context, orgID string, in garmclient.Po
 	return id, nil
 }
 
+func (c *Client) ListOrgPools(_ context.Context, orgID string) ([]garmparams.Pool, error) {
+	if _, ok := c.Orgs[orgID]; !ok {
+		return nil, &notFound{what: "org " + orgID}
+	}
+	var out []garmparams.Pool
+	for _, p := range c.Pools {
+		if p.OrgID == orgID {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}
+
 func (c *Client) GetPool(_ context.Context, id string) (*garmparams.Pool, error) {
 	p, ok := c.Pools[id]
 	if !ok {

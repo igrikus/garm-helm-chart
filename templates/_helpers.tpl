@@ -64,6 +64,18 @@ Create the name of the service account to use
 {{- .Values.garm.admin.secretName | default (printf "%s-admin-credentials" (include "garm.fullname" .)) -}}
 {{- end -}}
 
+{{- define "garm.controllerName" -}}
+{{- printf "%s-controller" (include "garm.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "garm.controllerServiceAccountName" -}}
+{{- if .Values.controller.serviceAccount.create }}
+{{- default (include "garm.controllerName" .) .Values.controller.serviceAccount.name }}
+{{- else }}
+{{- default "default" .Values.controller.serviceAccount.name }}
+{{- end }}
+{{- end -}}
+
 {{- define "garm.db-path" -}}
 /var/lib/garm
 {{- end -}}

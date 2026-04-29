@@ -110,6 +110,22 @@ func (c *Client) CreateOrgPool(ctx context.Context, orgID string, in PoolCreate)
 	return id, err
 }
 
+func (c *Client) ListOrgPools(ctx context.Context, orgID string) ([]garmparams.Pool, error) {
+	var out []garmparams.Pool
+	err := c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
+		resp, err := c.api.Organizations.ListOrgPools(&organizations.ListOrgPoolsParams{
+			Context: ctx,
+			OrgID:   orgID,
+		}, auth)
+		if err != nil {
+			return err
+		}
+		out = resp.Payload
+		return nil
+	})
+	return out, err
+}
+
 func (c *Client) GetPool(ctx context.Context, id string) (*garmparams.Pool, error) {
 	var out garmparams.Pool
 	err := c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {

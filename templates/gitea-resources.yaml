@@ -1,0 +1,117 @@
+{{- range $endpoint := .Values.forges.gitea.endpoints }}
+{{- $name := required "forges.gitea.endpoints[].name is required" $endpoint.name }}
+---
+apiVersion: garm.igrikus.dev/v1alpha1
+kind: GiteaEndpoint
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "garm.labels" $ | nindent 4 }}
+spec:
+  baseURL: {{ required (printf "forges.gitea.endpoints[%s].baseURL is required" $name) $endpoint.baseURL | quote }}
+  {{- with $endpoint.apiBaseURL }}
+  apiBaseURL: {{ . | quote }}
+  {{- end }}
+  {{- with $endpoint.description }}
+  description: {{ . | quote }}
+  {{- end }}
+  {{- with $endpoint.caCertBundleSecretRef }}
+  caCertBundleSecretRef:
+    name: {{ required (printf "forges.gitea.endpoints[%s].caCertBundleSecretRef.name is required" $name) .name | quote }}
+    key: {{ required (printf "forges.gitea.endpoints[%s].caCertBundleSecretRef.key is required" $name) .key | quote }}
+  {{- end }}
+{{- end }}
+{{- range $credentials := .Values.forges.gitea.credentials }}
+{{- $name := required "forges.gitea.credentials[].name is required" $credentials.name }}
+{{- $patSecretRef := required (printf "forges.gitea.credentials[%s].patSecretRef is required" $name) $credentials.patSecretRef }}
+---
+apiVersion: garm.igrikus.dev/v1alpha1
+kind: GiteaCredentials
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "garm.labels" $ | nindent 4 }}
+spec:
+  endpointRef:
+    name: {{ required (printf "forges.gitea.credentials[%s].endpointName is required" $name) $credentials.endpointName | quote }}
+  {{- with $credentials.description }}
+  description: {{ . | quote }}
+  {{- end }}
+  patSecretRef:
+    name: {{ required (printf "forges.gitea.credentials[%s].patSecretRef.name is required" $name) $patSecretRef.name | quote }}
+    key: {{ required (printf "forges.gitea.credentials[%s].patSecretRef.key is required" $name) $patSecretRef.key | quote }}
+{{- end }}
+{{- range $org := .Values.forges.gitea.organizations }}
+{{- $name := required "forges.gitea.organizations[].name is required" $org.name }}
+---
+apiVersion: garm.igrikus.dev/v1alpha1
+kind: GiteaOrganization
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "garm.labels" $ | nindent 4 }}
+spec:
+  endpointRef:
+    name: {{ required (printf "forges.gitea.organizations[%s].endpointName is required" $name) $org.endpointName | quote }}
+  credentialsRef:
+    name: {{ required (printf "forges.gitea.organizations[%s].credentialsName is required" $name) $org.credentialsName | quote }}
+  name: {{ default $name $org.organizationName | quote }}
+  {{- with $org.poolBalancerType }}
+  poolBalancerType: {{ . | quote }}
+  {{- end }}
+  {{- with $org.webhookSecretRef }}
+  webhookSecretRef:
+    name: {{ required (printf "forges.gitea.organizations[%s].webhookSecretRef.name is required" $name) .name | quote }}
+    key: {{ required (printf "forges.gitea.organizations[%s].webhookSecretRef.key is required" $name) .key | quote }}
+  {{- end }}
+{{- end }}
+{{- range $pool := .Values.forges.gitea.pools }}
+{{- $name := required "forges.gitea.pools[].name is required" $pool.name }}
+{{- $imageName := default (printf "%s-image" $name) $pool.imageName }}
+---
+apiVersion: garm.igrikus.dev/v1alpha1
+kind: Image
+metadata:
+  name: {{ $imageName }}
+  labels:
+    {{- include "garm.labels" $ | nindent 4 }}
+spec:
+  tag: {{ required (printf "forges.gitea.pools[%s].image is required" $name) $pool.image | quote }}
+  {{- with $pool.imageDescription }}
+  description: {{ . | quote }}
+  {{- end }}
+---
+apiVersion: garm.igrikus.dev/v1alpha1
+kind: Pool
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "garm.labels" $ | nindent 4 }}
+spec:
+  forgeRef:
+    kind: GiteaEndpoint
+    name: {{ required (printf "forges.gitea.pools[%s].endpointName is required" $name) $pool.endpointName | quote }}
+  scopeRef:
+    kind: GiteaOrganization
+    name: {{ required (printf "forges.gitea.pools[%s].organizationName is required" $name) $pool.organizationName | quote }}
+  providerName: {{ required (printf "forges.gitea.pools[%s].providerName is required" $name) $pool.providerName | quote }}
+  imageRef:
+    name: {{ $imageName | quote }}
+  flavor: {{ required (printf "forges.gitea.pools[%s].flavor is required" $name) $pool.flavor | quote }}
+  osType: {{ default "linux" $pool.osType | quote }}
+  osArch: {{ default "amd64" $pool.osArch | quote }}
+  {{- with $pool.tags }}
+  tags:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  minIdleRunners: {{ default 0 $pool.minIdleRunners }}
+  maxRunners: {{ default 5 $pool.maxRunners }}
+  enabled: {{ if hasKey $pool "enabled" }}{{ $pool.enabled }}{{ else }}true{{ end }}
+  runnerBootstrapTimeoutMinutes: {{ default 20 $pool.runnerBootstrapTimeoutMinutes }}
+  runnerPrefix: {{ $name | quote }}
+  priority: {{ default 0 $pool.priority }}
+  {{- with $pool.extraSpec }}
+  extraSpecs:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

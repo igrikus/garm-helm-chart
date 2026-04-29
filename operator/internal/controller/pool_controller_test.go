@@ -138,6 +138,41 @@ var _ = Describe("Pool Controller", func() {
 		))
 	})
 
+	It("adopts a single existing organization pool by runner prefix", func() {
+		gc := fake.New()
+		createReadyOrg(gc)
+		createImage()
+		createPool(basePoolSpec())
+
+		gc.Pools["existing-pool"] = garmparams.Pool{
+			ID:                     "existing-pool",
+			ProviderName:           "lxd",
+			MaxRunners:             5,
+			MinIdleRunners:         1,
+			Image:                  "ubuntu-24.04",
+			Flavor:                 "medium",
+			OSType:                 commonparams.OSType("linux"),
+			OSArch:                 commonparams.OSArch("amd64"),
+			Tags:                   []garmparams.Tag{{Name: "linux"}, {Name: "self-hosted"}},
+			Enabled:                true,
+			RunnerBootstrapTimeout: 20,
+			RunnerPrefix:           garmparams.RunnerPrefix{Prefix: "ci"},
+			Priority:               10,
+			OrgID:                  "org-1",
+		}
+
+		r := newReconciler(gc)
+		_, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: poolNSN})
+		Expect(err).NotTo(HaveOccurred())
+		_, err = r.Reconcile(ctx, reconcile.Request{NamespacedName: poolNSN})
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(gc.Pools).To(HaveLen(1))
+		obj := &garmv1alpha1.Pool{}
+		Expect(k8sClient.Get(ctx, poolNSN, obj)).To(Succeed())
+		Expect(obj.Status.ID).To(Equal("existing-pool"))
+	})
+
 	It("patches only changed pool fields during drift correction", func() {
 		gc := fake.New()
 		createReadyOrg(gc)

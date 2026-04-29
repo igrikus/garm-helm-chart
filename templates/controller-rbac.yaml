@@ -1,0 +1,102 @@
+{{- if .Values.controller.enabled -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "garm.controllerName" . }}
+  labels:
+    {{- include "garm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["garm.igrikus.dev"]
+    resources:
+      - enterprises
+      - giteacredentials
+      - giteaendpoints
+      - giteaorganizations
+      - githubcredentials
+      - githubendpoints
+      - images
+      - pools
+      - repositories
+      - runners
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  - apiGroups: ["garm.igrikus.dev"]
+    resources:
+      - enterprises/finalizers
+      - giteacredentials/finalizers
+      - giteaendpoints/finalizers
+      - giteaorganizations/finalizers
+      - githubcredentials/finalizers
+      - githubendpoints/finalizers
+      - images/finalizers
+      - pools/finalizers
+      - repositories/finalizers
+      - runners/finalizers
+    verbs: ["update"]
+  - apiGroups: ["garm.igrikus.dev"]
+    resources:
+      - enterprises/status
+      - giteacredentials/status
+      - giteaendpoints/status
+      - giteaorganizations/status
+      - githubcredentials/status
+      - githubendpoints/status
+      - images/status
+      - pools/status
+      - repositories/status
+      - runners/status
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "garm.controllerName" . }}
+  labels:
+    {{- include "garm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "garm.controllerName" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "garm.controllerServiceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "garm.controllerName" . }}-leader-election
+  labels:
+    {{- include "garm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "garm.controllerName" . }}-leader-election
+  labels:
+    {{- include "garm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "garm.controllerName" . }}-leader-election
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "garm.controllerServiceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

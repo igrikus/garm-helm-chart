@@ -101,7 +101,7 @@ func (r *PoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	desired := buildPoolCreate(&obj.Spec, img.Spec.Tag)
 
 	if obj.Status.ID == "" {
-		id, err := r.Garm.CreateOrgPool(ctx, org.Status.ID, desired)
+		id, err := r.adoptOrCreateOrgPool(ctx, org.Status.ID, desired)
 		if err != nil {
 			return r.markPoolFalse(ctx, obj, garmv1alpha1.ReasonAPIError, err)
 		}
@@ -145,6 +145,27 @@ func (r *PoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{RequeueAfter: requeueAfter}, nil
+}
+
+func (r *PoolReconciler) adoptOrCreateOrgPool(ctx context.Context, orgID string, desired garmclient.PoolCreate) (string, error) {
+	pools, err := r.Garm.ListOrgPools(ctx, orgID)
+	if err != nil {
+		return "", err
+	}
+	var matches []garmparams.Pool
+	for _, p := range pools {
+		if p.RunnerPrefix.Prefix == desired.RunnerPrefix {
+			matches = append(matches, p)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return r.Garm.CreateOrgPool(ctx, orgID, desired)
+	case 1:
+		return matches[0].ID, nil
+	default:
+		return "", fmt.Errorf("found %d existing organization pools with runner prefix %q", len(matches), desired.RunnerPrefix)
+	}
 }
 
 func (r *PoolReconciler) drain(ctx context.Context, obj *garmv1alpha1.Pool) (ctrl.Result, error) {

@@ -130,6 +130,41 @@ resources:
     requests:
       cpu: 50m
       memory: 128Mi
+  ## -- Resources for the GARM controller manager.
+  controller:
+    limits:
+      cpu: 500m
+      memory: 128Mi
+    requests:
+      cpu: 10m
+      memory: 64Mi
+
+## -- GARM controller manager configuration.
+controller:
+  enabled: true
+  image:
+    repository: "controller"
+    pullPolicy: "IfNotPresent"
+    tag: "latest"
+  replicas: 1
+  leaderElection: true
+  serviceAccount:
+    create: true
+    automount: true
+    annotations: {}
+    name: ""
+  podAnnotations: {}
+  podLabels: {}
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
 
 ## -- Additional volumes to mount in the Pod.
 extraVolumes: []
@@ -159,84 +194,74 @@ persistence:
   ## -- The size of the PVC.
   size: 1Gi
 
-## -- A list of runner templates to create.
-## -- NOTE: If you deploy templates and then remove this field then templates will NOT be deleted from GARM server.
-## -- This is because templates might be in use by runner pools and tracking all dependencies is not feasible.
+## -- Runner templates are not supported by the Phase 4 CRD-based chart.
 runnerTemplates: []
-  ## -- NOTE: The name must be a valid RFC 1123 subdomain name (e.g., 'my-template').
-  ## -- It can only contain lowercase letters, numbers, and hyphens (-).
-  ## -- Underscores (_) are not allowed as the name is used for Kubernetes resources.
-  # - name: "linux-cache-server"
-  #   description: "Configuring external cache server before runner is started"
-  #   forgeType: "gitea" # or github
-  #   osType: "linux"
-  #   ## -- The content of the runner template script.
-  #   ## -- You can provide the content directly as a multi-line string:
-  #   ## -- Or you can use 'helm --set-file' to load the content from a file:
-  #   ## -- helm install --set-file "runnerTemplates[0].content=./path/to/your/script.sh"
-  #   content: |
-  #     #!/bin/bash
-  #     echo "Your script below"
 
 ## -- Configuration for different git forges.
 forges:
   ## -- Gitea server configurations.
   gitea:
-    ## -- A list of Gitea credentials. If empty, Gitea integration is not initialized.
+    ## -- GiteaEndpoint CRs.
+    endpoints: []
+      # - name: "my-gitea"
+      #   baseURL: "https://gitea.example.com"
+      #   apiBaseURL: "https://gitea.example.com/api/v1"
+      #   description: "Primary Gitea"
+      #   caCertBundleSecretRef:
+      #     name: "gitea-ca"
+      #     key: "ca.crt"
+
+    ## -- GiteaCredentials CRs.
     credentials: []
       # - name: "my-gitea"
-      #   secretName: "garm-gitea-config"
-      #   baseUrlKey: "server-url"
-      #   # -- If this field is empty, then baseUrlKey will be used.
-      #   apiUrlKey: ""
-      #   tokenKey: "access-token"
+      #   endpointName: "my-gitea"
+      #   description: "Gitea PAT"
+      #   patSecretRef:
+      #     name: "gitea-token"
+      #     key: "token"
 
-    ## -- A list of Gitea organizations to create.
+    ## -- GiteaOrganization CRs.
     organizations: []
-      # - name: "MyGiteaOrg"
-      #   ## -- Reference to credential from the 'credentials' list above.
-      #   credName: "my-gitea"
+      # - name: "my-org"
+      #   endpointName: "my-gitea"
+      #   credentialsName: "my-gitea"
+      #   organizationName: "MyGiteaOrg"
+      #   poolBalancerType: "roundrobin"
+      #   webhookSecretRef:
+      #     name: "gitea-webhook"
+      #     key: "secret"
 
-    ## -- A list of Gitea runner pools to create.
-    ## -- Pools are re-created on every deployment (e.g helm upgrade) to always match the configuration.
-    ## -- NOTE: Before re-deploying make sure that this pool does not have any runners, otherwise you will get an error.
+    ## -- Org-scoped Gitea Image and Pool CRs. pools[].name is required and becomes spec.runnerPrefix.
     pools: []
-      ## -- Reference to organization from the 'organizations' list above.
-      # - orgName: "MyGiteaOrg"
-      #   ## -- Reference to provider from the 'providers' list below.
+      # - name: "my-pool"
+      #   organizationName: "my-org"
+      #   endpointName: "my-gitea"
       #   providerName: "gcp"
-      #   image: ""
-      #   flavor: ""
+      #   image: "ubuntu-24.04"
+      #   imageName: "my-pool-image"
+      #   imageDescription: "Ubuntu runner image"
+      #   flavor: "medium"
+      #   osType: "linux"
+      #   osArch: "amd64"
       #   minIdleRunners: 0
       #   maxRunners: 5
-      #   ## -- Specify tags to be applied to the runners created in this pool.
+      #   enabled: true
+      #   runnerBootstrapTimeoutMinutes: 20
+      #   priority: 0
       #   tags:
       #     - "my-garm-runner"
-      #   ## -- Specify any extra_spec supported by your provider.
-      #   ## -- It will be converted to JSON
       #   extraSpec:
       #     custom_labels:
       #       my-custom-label: "my-value"
       #     disable_updates: true
-      #   ## -- The name or ID of the runner install template to use for this pool.
-      #   runnerInstallTemplate: ""
 
-  ## -- GitHub server configurations.
+  ## -- GitHub values are reserved for Phase 5 and fail rendering when populated.
   github:
-    ## -- A list of GitHub servers/credentials. If empty, GitHub integration is not initialized.
+    endpoints: []
     credentials: []
-    # - name: "my-github"
-    #   secretName: "my-github-secret"
-    # -- If this field is empty, the default GitHub endpoint will be used.
-    #   urlKey: ""
-    # -- Allowed values: 'pat' or 'app'
-    #   authType: "pat"
-    # -- Specify this key only if authType is 'pat'
-    #   tokenKey: "token"
-    # -- Specify values below only if authType is 'app'
-    #   appIdKey: "app-id"
-    #   appInstallationIdKey: "app-installation-id"
-    #   privateKeyKey: "private-key"
+    organizations: []
+    repositories: []
+    enterprises: []
 
 ## -- Configuration for different providers.
 providers: []
