@@ -1,42 +1,38 @@
 # GARM Helm Chart
 
-This Helm chart deploys [GARM (GitHub/Gitea Actions Runner Manager)](https://github.com/cloudbase/garm) on a Kubernetes cluster.
+This chart installs [GARM](https://github.com/cloudbase/garm) and a Kubernetes controller that reconciles GARM configuration from CRDs.
 
 > [!NOTE]
 > This is an unofficial Helm chart and is not affiliated with the GARM project. Please do not open issues regarding this chart in the official GARM repository.
 
-## Chart Status & Expectations
-
-- This chart was initially created for a specific use case (Gitea with a GCP provider). For other scenarios, it is provided on a best-effort basis. Pull requests are highly encouraged and welcome.
-- The chart relies on unreleased GARM features (e.g., WebUI, Gitea forge support). Right now it uses a pinned `nightly` image hash that has been tested. Using other image versions or tags may result in partial or complete failure.
-
 ## Architecture
 
-This chart uses an operator-like pattern, launching two pods:
+The release contains two long-running workloads:
 
-- **GARM Server (`Deployment`):** The main GARM application that runs continuously.
-- **Operator (`Job`):** A one-time job that runs during `helm install` or `helm upgrade` to apply declarative configurations for forges, providers, and runner pools from your `values.yaml`.
+- `garm`: the GARM API server, UI, database storage, and provider configuration.
+- `garm-operator`: a controller manager that watches `garm.igrikus.dev/v1alpha1` resources and calls the GARM API.
+
+The chart can render CRs for endpoints, credentials, organizations, repositories, enterprises, images, runner templates, and pools. The controller owns lifecycle reconciliation after install and upgrade.
 
 ## Installation
 
-1.  Create a copy of `values.yaml` (e.g., `my-values.yaml`) and customize it for your environment.
-2.  Install the chart:
-    ```bash
-    helm install -f my-values.yaml my-garm oci://ghcr.io/igrikus/garm
-    ```
+1. Create a copy of `values.yaml` (e.g., `my-values.yaml`) and customize it for your environment.
 
-## Configuration
+Install the published OCI chart:
 
-All configuration is managed through the `values.yaml` file, which serves as the single source of truth for your GARM deployment. Please refer to the comments within `values.yaml` for detailed information on all available options.
+```bash
+helm install my-garm oci://ghcr.io/igrikus/garm \
+  --namespace garm \
+  --create-namespace \
+  -f my-values.yaml
+```
 
-### Pool Management
+## Operator local development
 
-This chart provides a convenient way to manage GARM pools directly from your `values.yaml` file.
-
-**Important Notes:**
-
-- **Gitea Exclusive:** Currently, this declarative pool management feature is only implemented for Gitea forges.
-- **Pool Recreation:** Pools are recreated on every `helm upgrade` to ensure they are always synchronized with the state defined in `values.yaml`. Any manual changes made to the pools via the GARM UI or API will be lost on chart upgrade
+1. Run `make manifests` and `make generate` in `operator/` after API changes.
+2. Run `go test ./...` in `operator/`.
+3. Run `helm lint .` and `helm template . --include-crds`.
+4. Keep root `crds/` in sync with operator API changes.
 
 ## Contributing
 
