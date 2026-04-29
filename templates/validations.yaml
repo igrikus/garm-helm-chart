@@ -1,16 +1,13 @@
 {{- if .Values.runnerTemplates }}
-{{- fail "runnerTemplates are not supported by the Phase 4 CRD-based chart; use CRD support added in a later phase" }}
-{{- end }}
-{{- with .Values.forges.github }}
-{{- if or .endpoints .credentials .organizations .repositories .enterprises }}
-{{- fail "GitHub, Repository, and Enterprise resources are not supported by the Phase 4 chart; only Gitea organization-scoped resources are supported" }}
-{{- end }}
+{{- fail "runnerTemplates are not supported by the Phase 5 CRD-based chart; RunnerTemplate CR support is deferred" }}
 {{- end }}
 {{- range $pool := .Values.forges.gitea.pools }}
-{{- if and $pool.scopeRef (ne $pool.scopeRef.kind "GiteaOrganization") }}
-{{- fail (printf "Gitea pool %q uses unsupported scope %q; Phase 4 supports only GiteaOrganization pools" ($pool.name | default "<missing-name>") $pool.scopeRef.kind) }}
-{{- end }}
 {{- if $pool.runnerInstallTemplate }}
-{{- fail (printf "Gitea pool %q uses runnerInstallTemplate, which is not supported by the Phase 4 chart" ($pool.name | default "<missing-name>")) }}
+{{- fail (printf "Gitea pool %q uses runnerInstallTemplate, which is not supported by the Phase 5 chart" ($pool.name | default "<missing-name>")) }}
+{{- end }}
+{{- end }}
+{{- range $pool := .Values.forges.github.pools }}
+{{- if $pool.runnerInstallTemplate }}
+{{- fail (printf "GitHub pool %q uses runnerInstallTemplate, which is not supported by the Phase 5 chart" ($pool.name | default "<missing-name>")) }}
 {{- end }}
 {{- end }}

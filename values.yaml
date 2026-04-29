@@ -143,9 +143,9 @@ resources:
 controller:
   enabled: true
   image:
-    repository: "controller"
+    repository: "ghcr.io/igrikus/garm-operator"
     pullPolicy: "IfNotPresent"
-    tag: "latest"
+    tag: ""
   replicas: 1
   leaderElection: true
   serviceAccount:
@@ -194,7 +194,7 @@ persistence:
   ## -- The size of the PVC.
   size: 1Gi
 
-## -- Runner templates are not supported by the Phase 4 CRD-based chart.
+## -- Runner templates are not supported by the Phase 5 CRD-based chart.
 runnerTemplates: []
 
 ## -- Configuration for different git forges.
@@ -231,10 +231,23 @@ forges:
       #     name: "gitea-webhook"
       #     key: "secret"
 
-    ## -- Org-scoped Gitea Image and Pool CRs. pools[].name is required and becomes spec.runnerPrefix.
+    ## -- Gitea Repository CRs.
+    repositories: []
+      # - name: "my-repo"
+      #   endpointName: "my-gitea"
+      #   credentialsName: "my-gitea"
+      #   owner: "MyGiteaOrg"
+      #   repositoryName: "my-repo"
+      #   poolBalancerType: "roundrobin"
+      #   webhookSecretRef:
+      #     name: "gitea-webhook"
+      #     key: "secret"
+
+    ## -- Org- or repository-scoped Gitea Image and Pool CRs. pools[].name is required and becomes spec.runnerPrefix.
     pools: []
       # - name: "my-pool"
       #   organizationName: "my-org"
+      #   repositoryName: ""
       #   endpointName: "my-gitea"
       #   providerName: "gcp"
       #   image: "ubuntu-24.04"
@@ -255,13 +268,60 @@ forges:
       #       my-custom-label: "my-value"
       #     disable_updates: true
 
-  ## -- GitHub values are reserved for Phase 5 and fail rendering when populated.
+  ## -- GitHub server configurations.
   github:
     endpoints: []
+      # - name: "github"
+      #   baseURL: "https://github.com"
+      #   apiBaseURL: ""
+      #   uploadBaseURL: ""
+      #   description: "Public GitHub"
+      #   caCertBundleSecretRef:
+      #     name: "github-ca"
+      #     key: "ca.crt"
     credentials: []
-    organizations: []
+      # - name: "github-pat"
+      #   endpointName: "github"
+      #   description: "GitHub PAT"
+      #   authType: "pat"
+      #   patSecretRef:
+      #     name: "github-token"
+      #     key: "token"
+      # - name: "github-app"
+      #   endpointName: "github"
+      #   authType: "app"
+      #   appAuth:
+      #     appID: 123
+      #     installationID: 456
+      #     privateKeySecretRef:
+      #       name: "github-app-key"
+      #       key: "private-key.pem"
     repositories: []
+      # - name: "github-repo"
+      #   endpointName: "github"
+      #   credentialsName: "github-pat"
+      #   owner: "my-org"
+      #   repositoryName: "my-repo"
+      #   poolBalancerType: "roundrobin"
+      #   webhookSecretRef:
+      #     name: "github-webhook"
+      #     key: "secret"
     enterprises: []
+      # - name: "github-enterprise"
+      #   endpointName: "github"
+      #   credentialsName: "github-app"
+      #   enterpriseName: "my-enterprise"
+      #   poolBalancerType: "roundrobin"
+      #   webhookSecretRef:
+      #     name: "github-webhook"
+      #     key: "secret"
+    pools: []
+      # - name: "github-repo-pool"
+      #   repositoryName: "github-repo"
+      #   endpointName: "github"
+      #   providerName: "gcp"
+      #   image: "ubuntu-24.04"
+      #   flavor: "medium"
 
 ## -- Configuration for different providers.
 providers: []

@@ -33,10 +33,14 @@ type Client struct {
 	Endpoints     map[string]garmparams.ForgeEndpoint
 	Credentials   map[int64]garmparams.ForgeCredentials
 	Orgs          map[string]garmparams.Organization
+	Repos         map[string]garmparams.Repository
+	Enterprises   map[string]garmparams.Enterprise
 	Pools         map[string]garmparams.Pool
 	Instances     map[string][]garmparams.Instance // keyed by pool ID
 	nextCredID    int64
 	nextOrgID     int
+	nextRepoID    int
+	nextEntID     int
 	nextPoolID    int
 	CreateOrgFail bool // toggle for negative tests
 }
@@ -46,6 +50,8 @@ func New() *Client {
 		Endpoints:   map[string]garmparams.ForgeEndpoint{},
 		Credentials: map[int64]garmparams.ForgeCredentials{},
 		Orgs:        map[string]garmparams.Organization{},
+		Repos:       map[string]garmparams.Repository{},
+		Enterprises: map[string]garmparams.Enterprise{},
 		Pools:       map[string]garmparams.Pool{},
 		Instances:   map[string][]garmparams.Instance{},
 	}
@@ -93,6 +99,47 @@ func (c *Client) DeleteGiteaEndpoint(_ context.Context, name string) error {
 	return nil
 }
 
+func (c *Client) CreateGithubEndpoint(_ context.Context, in garmclient.GithubEndpointSpec) (string, error) {
+	if _, ok := c.Endpoints[in.Name]; ok {
+		return "", errors.New("conflict")
+	}
+	c.Endpoints[in.Name] = garmparams.ForgeEndpoint{
+		Name: in.Name, Description: in.Description, APIBaseURL: in.APIBaseURL, UploadBaseURL: in.UploadBaseURL,
+		BaseURL: in.BaseURL, CACertBundle: in.CACertBundle, EndpointType: garmparams.GithubEndpointType,
+	}
+	return in.Name, nil
+}
+
+func (c *Client) GetGithubEndpoint(_ context.Context, name string) (*garmparams.ForgeEndpoint, error) {
+	e, ok := c.Endpoints[name]
+	if !ok {
+		return nil, &notFound{what: "endpoint " + name}
+	}
+	return &e, nil
+}
+
+func (c *Client) UpdateGithubEndpoint(_ context.Context, name string, in garmclient.GithubEndpointSpec) error {
+	e, ok := c.Endpoints[name]
+	if !ok {
+		return &notFound{what: "endpoint " + name}
+	}
+	e.Description = in.Description
+	e.APIBaseURL = in.APIBaseURL
+	e.UploadBaseURL = in.UploadBaseURL
+	e.BaseURL = in.BaseURL
+	e.CACertBundle = in.CACertBundle
+	c.Endpoints[name] = e
+	return nil
+}
+
+func (c *Client) DeleteGithubEndpoint(_ context.Context, name string) error {
+	if _, ok := c.Endpoints[name]; !ok {
+		return &notFound{what: "endpoint " + name}
+	}
+	delete(c.Endpoints, name)
+	return nil
+}
+
 func (c *Client) CreateGiteaCredentials(_ context.Context, in garmclient.GiteaCredentialsSpec) (int64, error) {
 	if _, ok := c.Endpoints[in.Endpoint]; !ok {
 		return 0, &notFound{what: "endpoint " + in.Endpoint}
@@ -126,6 +173,49 @@ func (c *Client) UpdateGiteaCredentials(_ context.Context, id int64, in garmclie
 }
 
 func (c *Client) DeleteGiteaCredentials(_ context.Context, id int64) error {
+	if _, ok := c.Credentials[id]; !ok {
+		return &notFound{what: fmt.Sprintf("credentials %d", id)}
+	}
+	delete(c.Credentials, id)
+	return nil
+}
+
+func (c *Client) CreateGithubCredentials(_ context.Context, in garmclient.GithubCredentialsSpec) (int64, error) {
+	ep, ok := c.Endpoints[in.Endpoint]
+	if !ok {
+		return 0, &notFound{what: "endpoint " + in.Endpoint}
+	}
+	c.nextCredID++
+	id := c.nextCredID
+	c.Credentials[id] = garmparams.ForgeCredentials{
+		ID: uint(id), Name: in.Name, Description: in.Description, BaseURL: ep.BaseURL,
+		APIBaseURL: ep.APIBaseURL, UploadBaseURL: ep.UploadBaseURL, ForgeType: garmparams.GithubEndpointType,
+		AuthType: garmparams.ForgeAuthType(in.AuthType), Endpoint: ep,
+	}
+	return id, nil
+}
+
+func (c *Client) GetGithubCredentials(_ context.Context, id int64) (*garmparams.ForgeCredentials, error) {
+	cr, ok := c.Credentials[id]
+	if !ok {
+		return nil, &notFound{what: fmt.Sprintf("credentials %d", id)}
+	}
+	return &cr, nil
+}
+
+func (c *Client) UpdateGithubCredentials(_ context.Context, id int64, in garmclient.GithubCredentialsUpdate) error {
+	cr, ok := c.Credentials[id]
+	if !ok {
+		return &notFound{what: fmt.Sprintf("credentials %d", id)}
+	}
+	if in.Description != nil {
+		cr.Description = *in.Description
+	}
+	c.Credentials[id] = cr
+	return nil
+}
+
+func (c *Client) DeleteGithubCredentials(_ context.Context, id int64) error {
 	if _, ok := c.Credentials[id]; !ok {
 		return &notFound{what: fmt.Sprintf("credentials %d", id)}
 	}
@@ -173,6 +263,94 @@ func (c *Client) DeleteOrg(_ context.Context, id string) error {
 	return nil
 }
 
+func (c *Client) CreateRepo(_ context.Context, in garmclient.RepoSpec) (string, error) {
+	c.nextRepoID++
+	id := fmt.Sprintf("repo-%d", c.nextRepoID)
+	c.Repos[id] = garmparams.Repository{
+		ID: id, Owner: in.Owner, Name: in.Name, CredentialsName: in.CredentialsName,
+		PoolBalancerType: garmparams.PoolBalancerType(in.PoolBalancerType),
+		Credentials:      garmparams.ForgeCredentials{Name: in.CredentialsName, ForgeType: garmparams.EndpointType(in.ForgeType)},
+		Endpoint:         garmparams.ForgeEndpoint{EndpointType: garmparams.EndpointType(in.ForgeType)},
+	}
+	return id, nil
+}
+
+func (c *Client) GetRepo(_ context.Context, id string) (*garmparams.Repository, error) {
+	r, ok := c.Repos[id]
+	if !ok {
+		return nil, &notFound{what: "repo " + id}
+	}
+	return &r, nil
+}
+
+func (c *Client) UpdateRepo(_ context.Context, id string, in garmclient.EntityUpdate) error {
+	r, ok := c.Repos[id]
+	if !ok {
+		return &notFound{what: "repo " + id}
+	}
+	if in.CredentialsName != nil {
+		r.CredentialsName = *in.CredentialsName
+		r.Credentials.Name = *in.CredentialsName
+	}
+	if in.PoolBalancerType != nil {
+		r.PoolBalancerType = garmparams.PoolBalancerType(*in.PoolBalancerType)
+	}
+	c.Repos[id] = r
+	return nil
+}
+
+func (c *Client) DeleteRepo(_ context.Context, id string, _ bool) error {
+	if _, ok := c.Repos[id]; !ok {
+		return &notFound{what: "repo " + id}
+	}
+	delete(c.Repos, id)
+	return nil
+}
+
+func (c *Client) CreateEnterprise(_ context.Context, in garmclient.EnterpriseSpec) (string, error) {
+	c.nextEntID++
+	id := fmt.Sprintf("enterprise-%d", c.nextEntID)
+	c.Enterprises[id] = garmparams.Enterprise{
+		ID: id, Name: in.Name, CredentialsName: in.CredentialsName,
+		PoolBalancerType: garmparams.PoolBalancerType(in.PoolBalancerType),
+		Credentials:      garmparams.ForgeCredentials{Name: in.CredentialsName, ForgeType: garmparams.GithubEndpointType},
+		Endpoint:         garmparams.ForgeEndpoint{EndpointType: garmparams.GithubEndpointType},
+	}
+	return id, nil
+}
+
+func (c *Client) GetEnterprise(_ context.Context, id string) (*garmparams.Enterprise, error) {
+	e, ok := c.Enterprises[id]
+	if !ok {
+		return nil, &notFound{what: "enterprise " + id}
+	}
+	return &e, nil
+}
+
+func (c *Client) UpdateEnterprise(_ context.Context, id string, in garmclient.EntityUpdate) error {
+	e, ok := c.Enterprises[id]
+	if !ok {
+		return &notFound{what: "enterprise " + id}
+	}
+	if in.CredentialsName != nil {
+		e.CredentialsName = *in.CredentialsName
+		e.Credentials.Name = *in.CredentialsName
+	}
+	if in.PoolBalancerType != nil {
+		e.PoolBalancerType = garmparams.PoolBalancerType(*in.PoolBalancerType)
+	}
+	c.Enterprises[id] = e
+	return nil
+}
+
+func (c *Client) DeleteEnterprise(_ context.Context, id string) error {
+	if _, ok := c.Enterprises[id]; !ok {
+		return &notFound{what: "enterprise " + id}
+	}
+	delete(c.Enterprises, id)
+	return nil
+}
+
 func tagsFromStrings(in []string) []garmparams.Tag {
 	out := make([]garmparams.Tag, 0, len(in))
 	for _, t := range in {
@@ -185,6 +363,14 @@ func (c *Client) CreateOrgPool(_ context.Context, orgID string, in garmclient.Po
 	if _, ok := c.Orgs[orgID]; !ok {
 		return "", &notFound{what: "org " + orgID}
 	}
+	id := c.createPool(in)
+	p := c.Pools[id]
+	p.OrgID = orgID
+	c.Pools[id] = p
+	return id, nil
+}
+
+func (c *Client) createPool(in garmclient.PoolCreate) string {
 	c.nextPoolID++
 	id := fmt.Sprintf("pool-%d", c.nextPoolID)
 	c.Pools[id] = garmparams.Pool{
@@ -202,10 +388,9 @@ func (c *Client) CreateOrgPool(_ context.Context, orgID string, in garmclient.Po
 		ExtraSpecs:             in.ExtraSpecs,
 		GitHubRunnerGroup:      in.GitHubRunnerGroup,
 		Priority:               in.Priority,
-		OrgID:                  orgID,
 		RunnerPrefix:           garmparams.RunnerPrefix{Prefix: in.RunnerPrefix},
 	}
-	return id, nil
+	return id
 }
 
 func (c *Client) ListOrgPools(_ context.Context, orgID string) ([]garmparams.Pool, error) {
@@ -215,6 +400,54 @@ func (c *Client) ListOrgPools(_ context.Context, orgID string) ([]garmparams.Poo
 	var out []garmparams.Pool
 	for _, p := range c.Pools {
 		if p.OrgID == orgID {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}
+
+func (c *Client) CreateRepoPool(_ context.Context, repoID string, in garmclient.PoolCreate) (string, error) {
+	if _, ok := c.Repos[repoID]; !ok {
+		return "", &notFound{what: "repo " + repoID}
+	}
+	id := c.createPool(in)
+	p := c.Pools[id]
+	p.RepoID = repoID
+	c.Pools[id] = p
+	return id, nil
+}
+
+func (c *Client) ListRepoPools(_ context.Context, repoID string) ([]garmparams.Pool, error) {
+	if _, ok := c.Repos[repoID]; !ok {
+		return nil, &notFound{what: "repo " + repoID}
+	}
+	var out []garmparams.Pool
+	for _, p := range c.Pools {
+		if p.RepoID == repoID {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}
+
+func (c *Client) CreateEnterprisePool(_ context.Context, enterpriseID string, in garmclient.PoolCreate) (string, error) {
+	if _, ok := c.Enterprises[enterpriseID]; !ok {
+		return "", &notFound{what: "enterprise " + enterpriseID}
+	}
+	id := c.createPool(in)
+	p := c.Pools[id]
+	p.EnterpriseID = enterpriseID
+	c.Pools[id] = p
+	return id, nil
+}
+
+func (c *Client) ListEnterprisePools(_ context.Context, enterpriseID string) ([]garmparams.Pool, error) {
+	if _, ok := c.Enterprises[enterpriseID]; !ok {
+		return nil, &notFound{what: "enterprise " + enterpriseID}
+	}
+	var out []garmparams.Pool
+	for _, p := range c.Pools {
+		if p.EnterpriseID == enterpriseID {
 			out = append(out, p)
 		}
 	}

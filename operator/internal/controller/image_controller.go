@@ -22,7 +22,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	garmv1alpha1 "github.com/igrikus/garm-helm-chart/operator/api/v1alpha1"
 	"github.com/igrikus/garm-helm-chart/operator/internal/garmclient"
@@ -39,21 +38,13 @@ type ImageReconciler struct {
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=images/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=images/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Image object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.3/pkg/reconcile
 func (r *ImageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = logf.FromContext(ctx)
-
-	// TODO(user): your logic here
-
-	return ctrl.Result{}, nil
+	obj := &garmv1alpha1.Image{}
+	if err := r.Get(ctx, req.NamespacedName, obj); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+	obj.Status.ObservedGeneration = obj.Generation
+	return ctrl.Result{}, r.Status().Update(ctx, obj)
 }
 
 // SetupWithManager sets up the controller with the Manager.

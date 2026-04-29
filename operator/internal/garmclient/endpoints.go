@@ -28,6 +28,15 @@ type GiteaEndpointSpec struct {
 	CACertBundle []byte
 }
 
+type GithubEndpointSpec struct {
+	Name          string
+	Description   string
+	APIBaseURL    string
+	UploadBaseURL string
+	BaseURL       string
+	CACertBundle  []byte
+}
+
 func (c *Client) CreateGiteaEndpoint(ctx context.Context, in GiteaEndpointSpec) (string, error) {
 	var name string
 	err := c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
@@ -91,6 +100,78 @@ func (c *Client) UpdateGiteaEndpoint(ctx context.Context, name string, in GiteaE
 func (c *Client) DeleteGiteaEndpoint(ctx context.Context, name string) error {
 	return c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
 		return c.api.Endpoints.DeleteGiteaEndpoint(&endpoints.DeleteGiteaEndpointParams{
+			Context: ctx,
+			Name:    name,
+		}, auth)
+	})
+}
+
+func (c *Client) CreateGithubEndpoint(ctx context.Context, in GithubEndpointSpec) (string, error) {
+	var name string
+	err := c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
+		resp, err := c.api.Endpoints.CreateGithubEndpoint(&endpoints.CreateGithubEndpointParams{
+			Context: ctx,
+			Body: garmparams.CreateGithubEndpointParams{
+				Name:          in.Name,
+				Description:   in.Description,
+				APIBaseURL:    in.APIBaseURL,
+				UploadBaseURL: in.UploadBaseURL,
+				BaseURL:       in.BaseURL,
+				CACertBundle:  in.CACertBundle,
+			},
+		}, auth)
+		if err != nil {
+			return err
+		}
+		name = resp.Payload.Name
+		return nil
+	})
+	return name, err
+}
+
+func (c *Client) GetGithubEndpoint(ctx context.Context, name string) (*garmparams.ForgeEndpoint, error) {
+	var out garmparams.ForgeEndpoint
+	err := c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
+		resp, err := c.api.Endpoints.GetGithubEndpoint(&endpoints.GetGithubEndpointParams{
+			Context: ctx,
+			Name:    name,
+		}, auth)
+		if err != nil {
+			return err
+		}
+		out = resp.Payload
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) UpdateGithubEndpoint(ctx context.Context, name string, in GithubEndpointSpec) error {
+	desc := in.Description
+	apiURL := in.APIBaseURL
+	uploadURL := in.UploadBaseURL
+	baseURL := in.BaseURL
+	return c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
+		_, err := c.api.Endpoints.UpdateGithubEndpoint(&endpoints.UpdateGithubEndpointParams{
+			Context: ctx,
+			Name:    name,
+			Body: garmparams.UpdateGithubEndpointParams{
+				Description:   &desc,
+				APIBaseURL:    &apiURL,
+				UploadBaseURL: &uploadURL,
+				BaseURL:       &baseURL,
+				CACertBundle:  in.CACertBundle,
+			},
+		}, auth)
+		return err
+	})
+}
+
+func (c *Client) DeleteGithubEndpoint(ctx context.Context, name string) error {
+	return c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
+		return c.api.Endpoints.DeleteGithubEndpoint(&endpoints.DeleteGithubEndpointParams{
 			Context: ctx,
 			Name:    name,
 		}, auth)

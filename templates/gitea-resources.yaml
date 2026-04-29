@@ -65,6 +65,32 @@ spec:
     key: {{ required (printf "forges.gitea.organizations[%s].webhookSecretRef.key is required" $name) .key | quote }}
   {{- end }}
 {{- end }}
+{{- range $repo := .Values.forges.gitea.repositories }}
+{{- $name := required "forges.gitea.repositories[].name is required" $repo.name }}
+---
+apiVersion: garm.igrikus.dev/v1alpha1
+kind: Repository
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "garm.labels" $ | nindent 4 }}
+spec:
+  forgeRef:
+    kind: GiteaEndpoint
+    name: {{ required (printf "forges.gitea.repositories[%s].endpointName is required" $name) $repo.endpointName | quote }}
+  credentialsRef:
+    name: {{ required (printf "forges.gitea.repositories[%s].credentialsName is required" $name) $repo.credentialsName | quote }}
+  owner: {{ required (printf "forges.gitea.repositories[%s].owner is required" $name) $repo.owner | quote }}
+  name: {{ required (printf "forges.gitea.repositories[%s].repositoryName is required" $name) $repo.repositoryName | quote }}
+  {{- with $repo.poolBalancerType }}
+  poolBalancerType: {{ . | quote }}
+  {{- end }}
+  {{- with $repo.webhookSecretRef }}
+  webhookSecretRef:
+    name: {{ required (printf "forges.gitea.repositories[%s].webhookSecretRef.name is required" $name) .name | quote }}
+    key: {{ required (printf "forges.gitea.repositories[%s].webhookSecretRef.key is required" $name) .key | quote }}
+  {{- end }}
+{{- end }}
 {{- range $pool := .Values.forges.gitea.pools }}
 {{- $name := required "forges.gitea.pools[].name is required" $pool.name }}
 {{- $imageName := default (printf "%s-image" $name) $pool.imageName }}
@@ -92,8 +118,13 @@ spec:
     kind: GiteaEndpoint
     name: {{ required (printf "forges.gitea.pools[%s].endpointName is required" $name) $pool.endpointName | quote }}
   scopeRef:
+    {{ if $pool.repositoryName }}
+    kind: Repository
+    name: {{ $pool.repositoryName | quote }}
+    {{- else }}
     kind: GiteaOrganization
     name: {{ required (printf "forges.gitea.pools[%s].organizationName is required" $name) $pool.organizationName | quote }}
+    {{- end }}
   providerName: {{ required (printf "forges.gitea.pools[%s].providerName is required" $name) $pool.providerName | quote }}
   imageRef:
     name: {{ $imageName | quote }}
@@ -109,6 +140,173 @@ spec:
   enabled: {{ if hasKey $pool "enabled" }}{{ $pool.enabled }}{{ else }}true{{ end }}
   runnerBootstrapTimeoutMinutes: {{ default 20 $pool.runnerBootstrapTimeoutMinutes }}
   runnerPrefix: {{ $name | quote }}
+  priority: {{ default 0 $pool.priority }}
+  {{- with $pool.extraSpec }}
+  extraSpecs:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- range $endpoint := .Values.forges.github.endpoints }}
+{{- $name := required "forges.github.endpoints[].name is required" $endpoint.name }}
+---
+apiVersion: garm.igrikus.dev/v1alpha1
+kind: GithubEndpoint
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "garm.labels" $ | nindent 4 }}
+spec:
+  baseURL: {{ required (printf "forges.github.endpoints[%s].baseURL is required" $name) $endpoint.baseURL | quote }}
+  {{- with $endpoint.apiBaseURL }}
+  apiBaseURL: {{ . | quote }}
+  {{- end }}
+  {{- with $endpoint.uploadBaseURL }}
+  uploadBaseURL: {{ . | quote }}
+  {{- end }}
+  {{- with $endpoint.description }}
+  description: {{ . | quote }}
+  {{- end }}
+  {{- with $endpoint.caCertBundleSecretRef }}
+  caCertBundleSecretRef:
+    name: {{ required (printf "forges.github.endpoints[%s].caCertBundleSecretRef.name is required" $name) .name | quote }}
+    key: {{ required (printf "forges.github.endpoints[%s].caCertBundleSecretRef.key is required" $name) .key | quote }}
+  {{- end }}
+{{- end }}
+{{- range $credentials := .Values.forges.github.credentials }}
+{{- $name := required "forges.github.credentials[].name is required" $credentials.name }}
+{{- $authType := default "pat" $credentials.authType }}
+---
+apiVersion: garm.igrikus.dev/v1alpha1
+kind: GithubCredentials
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "garm.labels" $ | nindent 4 }}
+spec:
+  endpointRef:
+    name: {{ required (printf "forges.github.credentials[%s].endpointName is required" $name) $credentials.endpointName | quote }}
+  {{- with $credentials.description }}
+  description: {{ . | quote }}
+  {{- end }}
+  authType: {{ $authType | quote }}
+  {{- if eq $authType "app" }}
+  {{- $appAuth := required (printf "forges.github.credentials[%s].appAuth is required when authType is app" $name) $credentials.appAuth }}
+  appAuth:
+    appID: {{ required (printf "forges.github.credentials[%s].appAuth.appID is required" $name) $appAuth.appID }}
+    installationID: {{ required (printf "forges.github.credentials[%s].appAuth.installationID is required" $name) $appAuth.installationID }}
+    privateKeySecretRef:
+      name: {{ required (printf "forges.github.credentials[%s].appAuth.privateKeySecretRef.name is required" $name) $appAuth.privateKeySecretRef.name | quote }}
+      key: {{ required (printf "forges.github.credentials[%s].appAuth.privateKeySecretRef.key is required" $name) $appAuth.privateKeySecretRef.key | quote }}
+  {{- else }}
+  {{- $patSecretRef := required (printf "forges.github.credentials[%s].patSecretRef is required when authType is pat" $name) $credentials.patSecretRef }}
+  patSecretRef:
+    name: {{ required (printf "forges.github.credentials[%s].patSecretRef.name is required" $name) $patSecretRef.name | quote }}
+    key: {{ required (printf "forges.github.credentials[%s].patSecretRef.key is required" $name) $patSecretRef.key | quote }}
+  {{- end }}
+{{- end }}
+{{- range $repo := .Values.forges.github.repositories }}
+{{- $name := required "forges.github.repositories[].name is required" $repo.name }}
+---
+apiVersion: garm.igrikus.dev/v1alpha1
+kind: Repository
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "garm.labels" $ | nindent 4 }}
+spec:
+  forgeRef:
+    kind: GithubEndpoint
+    name: {{ required (printf "forges.github.repositories[%s].endpointName is required" $name) $repo.endpointName | quote }}
+  credentialsRef:
+    name: {{ required (printf "forges.github.repositories[%s].credentialsName is required" $name) $repo.credentialsName | quote }}
+  owner: {{ required (printf "forges.github.repositories[%s].owner is required" $name) $repo.owner | quote }}
+  name: {{ required (printf "forges.github.repositories[%s].repositoryName is required" $name) $repo.repositoryName | quote }}
+  {{- with $repo.poolBalancerType }}
+  poolBalancerType: {{ . | quote }}
+  {{- end }}
+  {{- with $repo.webhookSecretRef }}
+  webhookSecretRef:
+    name: {{ required (printf "forges.github.repositories[%s].webhookSecretRef.name is required" $name) .name | quote }}
+    key: {{ required (printf "forges.github.repositories[%s].webhookSecretRef.key is required" $name) .key | quote }}
+  {{- end }}
+{{- end }}
+{{- range $enterprise := .Values.forges.github.enterprises }}
+{{- $name := required "forges.github.enterprises[].name is required" $enterprise.name }}
+---
+apiVersion: garm.igrikus.dev/v1alpha1
+kind: Enterprise
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "garm.labels" $ | nindent 4 }}
+spec:
+  forgeRef:
+    kind: GithubEndpoint
+    name: {{ required (printf "forges.github.enterprises[%s].endpointName is required" $name) $enterprise.endpointName | quote }}
+  credentialsRef:
+    name: {{ required (printf "forges.github.enterprises[%s].credentialsName is required" $name) $enterprise.credentialsName | quote }}
+  name: {{ required (printf "forges.github.enterprises[%s].enterpriseName is required" $name) $enterprise.enterpriseName | quote }}
+  {{- with $enterprise.poolBalancerType }}
+  poolBalancerType: {{ . | quote }}
+  {{- end }}
+  {{- with $enterprise.webhookSecretRef }}
+  webhookSecretRef:
+    name: {{ required (printf "forges.github.enterprises[%s].webhookSecretRef.name is required" $name) .name | quote }}
+    key: {{ required (printf "forges.github.enterprises[%s].webhookSecretRef.key is required" $name) .key | quote }}
+  {{- end }}
+{{- end }}
+{{- range $pool := .Values.forges.github.pools }}
+{{- $name := required "forges.github.pools[].name is required" $pool.name }}
+{{- $imageName := default (printf "%s-image" $name) $pool.imageName }}
+---
+apiVersion: garm.igrikus.dev/v1alpha1
+kind: Image
+metadata:
+  name: {{ $imageName }}
+  labels:
+    {{- include "garm.labels" $ | nindent 4 }}
+spec:
+  tag: {{ required (printf "forges.github.pools[%s].image is required" $name) $pool.image | quote }}
+  {{- with $pool.imageDescription }}
+  description: {{ . | quote }}
+  {{- end }}
+---
+apiVersion: garm.igrikus.dev/v1alpha1
+kind: Pool
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "garm.labels" $ | nindent 4 }}
+spec:
+  forgeRef:
+    kind: GithubEndpoint
+    name: {{ required (printf "forges.github.pools[%s].endpointName is required" $name) $pool.endpointName | quote }}
+  scopeRef:
+    {{ if $pool.enterpriseName }}
+    kind: Enterprise
+    name: {{ $pool.enterpriseName | quote }}
+    {{- else }}
+    kind: Repository
+    name: {{ required (printf "forges.github.pools[%s].repositoryName or enterpriseName is required" $name) $pool.repositoryName | quote }}
+    {{- end }}
+  providerName: {{ required (printf "forges.github.pools[%s].providerName is required" $name) $pool.providerName | quote }}
+  imageRef:
+    name: {{ $imageName | quote }}
+  flavor: {{ required (printf "forges.github.pools[%s].flavor is required" $name) $pool.flavor | quote }}
+  osType: {{ default "linux" $pool.osType | quote }}
+  osArch: {{ default "amd64" $pool.osArch | quote }}
+  {{- with $pool.tags }}
+  tags:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  minIdleRunners: {{ default 0 $pool.minIdleRunners }}
+  maxRunners: {{ default 5 $pool.maxRunners }}
+  enabled: {{ if hasKey $pool "enabled" }}{{ $pool.enabled }}{{ else }}true{{ end }}
+  runnerBootstrapTimeoutMinutes: {{ default 20 $pool.runnerBootstrapTimeoutMinutes }}
+  runnerPrefix: {{ $name | quote }}
+  {{- with $pool.githubRunnerGroup }}
+  githubRunnerGroup: {{ . | quote }}
+  {{- end }}
   priority: {{ default 0 $pool.priority }}
   {{- with $pool.extraSpec }}
   extraSpecs:

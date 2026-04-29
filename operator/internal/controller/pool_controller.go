@@ -16,7 +16,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
+	"unicode"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -53,6 +55,9 @@ type PoolReconciler struct {
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=pools/finalizers,verbs=update
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=images,verbs=get;list;watch
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=giteaorganizations,verbs=get;list;watch
+// +kubebuilder:rbac:groups=garm.igrikus.dev,resources=repositories;enterprises,verbs=get;list;watch
+// +kubebuilder:rbac:groups=garm.igrikus.dev,resources=runners,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=garm.igrikus.dev,resources=runners/status,verbs=get;update;patch
 
 func (r *PoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
@@ -71,22 +76,9 @@ func (r *PoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{Requeue: true}, r.Update(ctx, obj)
 	}
 
-	if obj.Spec.ScopeRef.Kind != "GiteaOrganization" {
-		return r.markPoolFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss,
-			fmt.Errorf("scope kind %q not yet supported", obj.Spec.ScopeRef.Kind))
-	}
-
-	org := &garmv1alpha1.GiteaOrganization{}
-	if err := r.Get(ctx, types.NamespacedName{Namespace: obj.Namespace, Name: obj.Spec.ScopeRef.Name}, org); err != nil {
-		if apierrors.IsNotFound(err) {
-			return r.markPoolFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss,
-				fmt.Errorf("organization %s/%s not found", obj.Namespace, obj.Spec.ScopeRef.Name))
-		}
-		return ctrl.Result{}, err
-	}
-	if org.Status.ID == "" {
-		return r.markPoolFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss,
-			fmt.Errorf("organization %s/%s not yet reconciled", obj.Namespace, org.Name))
+	scopeID, err := r.resolvePoolScope(ctx, obj)
+	if err != nil {
+		return r.markPoolFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss, err)
 	}
 
 	img := &garmv1alpha1.Image{}
@@ -101,7 +93,7 @@ func (r *PoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	desired := buildPoolCreate(&obj.Spec, img.Spec.Tag)
 
 	if obj.Status.ID == "" {
-		id, err := r.adoptOrCreateOrgPool(ctx, org.Status.ID, desired)
+		id, err := r.adoptOrCreatePool(ctx, obj.Spec.ScopeRef.Kind, scopeID, desired)
 		if err != nil {
 			return r.markPoolFalse(ctx, obj, garmv1alpha1.ReasonAPIError, err)
 		}
@@ -134,6 +126,9 @@ func (r *PoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 			}
 		}
 		obj.Status.IdleRunners = idle
+		if err := r.syncRunnerMirrors(ctx, obj, instances); err != nil {
+			return r.markPoolFalse(ctx, obj, garmv1alpha1.ReasonAPIError, err)
+		}
 	}
 
 	obj.Status.ObservedGeneration = obj.Generation
@@ -147,8 +142,64 @@ func (r *PoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	return ctrl.Result{RequeueAfter: requeueAfter}, nil
 }
 
-func (r *PoolReconciler) adoptOrCreateOrgPool(ctx context.Context, orgID string, desired garmclient.PoolCreate) (string, error) {
-	pools, err := r.Garm.ListOrgPools(ctx, orgID)
+func (r *PoolReconciler) resolvePoolScope(ctx context.Context, obj *garmv1alpha1.Pool) (string, error) {
+	switch obj.Spec.ScopeRef.Kind {
+	case "GiteaOrganization":
+		org := &garmv1alpha1.GiteaOrganization{}
+		if err := r.Get(ctx, types.NamespacedName{Namespace: obj.Namespace, Name: obj.Spec.ScopeRef.Name}, org); err != nil {
+			if apierrors.IsNotFound(err) {
+				return "", fmt.Errorf("organization %s/%s not found", obj.Namespace, obj.Spec.ScopeRef.Name)
+			}
+			return "", err
+		}
+		if org.Status.ID == "" {
+			return "", fmt.Errorf("organization %s/%s not yet reconciled", obj.Namespace, org.Name)
+		}
+		return org.Status.ID, nil
+	case "Repository":
+		repo := &garmv1alpha1.Repository{}
+		if err := r.Get(ctx, types.NamespacedName{Namespace: obj.Namespace, Name: obj.Spec.ScopeRef.Name}, repo); err != nil {
+			if apierrors.IsNotFound(err) {
+				return "", fmt.Errorf("repository %s/%s not found", obj.Namespace, obj.Spec.ScopeRef.Name)
+			}
+			return "", err
+		}
+		if repo.Status.ID == "" {
+			return "", fmt.Errorf("repository %s/%s not yet reconciled", obj.Namespace, repo.Name)
+		}
+		return repo.Status.ID, nil
+	case "Enterprise":
+		ent := &garmv1alpha1.Enterprise{}
+		if err := r.Get(ctx, types.NamespacedName{Namespace: obj.Namespace, Name: obj.Spec.ScopeRef.Name}, ent); err != nil {
+			if apierrors.IsNotFound(err) {
+				return "", fmt.Errorf("enterprise %s/%s not found", obj.Namespace, obj.Spec.ScopeRef.Name)
+			}
+			return "", err
+		}
+		if ent.Status.ID == "" {
+			return "", fmt.Errorf("enterprise %s/%s not yet reconciled", obj.Namespace, ent.Name)
+		}
+		return ent.Status.ID, nil
+	default:
+		return "", fmt.Errorf("scope kind %q not supported", obj.Spec.ScopeRef.Kind)
+	}
+}
+
+func (r *PoolReconciler) adoptOrCreatePool(ctx context.Context, scopeKind, scopeID string, desired garmclient.PoolCreate) (string, error) {
+	var (
+		pools []garmparams.Pool
+		err   error
+	)
+	switch scopeKind {
+	case "GiteaOrganization":
+		pools, err = r.Garm.ListOrgPools(ctx, scopeID)
+	case "Repository":
+		pools, err = r.Garm.ListRepoPools(ctx, scopeID)
+	case "Enterprise":
+		pools, err = r.Garm.ListEnterprisePools(ctx, scopeID)
+	default:
+		return "", fmt.Errorf("scope kind %q not supported", scopeKind)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -160,11 +211,19 @@ func (r *PoolReconciler) adoptOrCreateOrgPool(ctx context.Context, orgID string,
 	}
 	switch len(matches) {
 	case 0:
-		return r.Garm.CreateOrgPool(ctx, orgID, desired)
+		switch scopeKind {
+		case "GiteaOrganization":
+			return r.Garm.CreateOrgPool(ctx, scopeID, desired)
+		case "Repository":
+			return r.Garm.CreateRepoPool(ctx, scopeID, desired)
+		case "Enterprise":
+			return r.Garm.CreateEnterprisePool(ctx, scopeID, desired)
+		}
+		return "", fmt.Errorf("scope kind %q not supported", scopeKind)
 	case 1:
 		return matches[0].ID, nil
 	default:
-		return "", fmt.Errorf("found %d existing organization pools with runner prefix %q", len(matches), desired.RunnerPrefix)
+		return "", fmt.Errorf("found %d existing %s pools with runner prefix %q", len(matches), scopeKind, desired.RunnerPrefix)
 	}
 }
 
@@ -251,6 +310,116 @@ func (r *PoolReconciler) markPoolFalse(ctx context.Context, obj *garmv1alpha1.Po
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, cause
+}
+
+func (r *PoolReconciler) syncRunnerMirrors(ctx context.Context, pool *garmv1alpha1.Pool, instances []garmparams.Instance) error {
+	seen := map[string]struct{}{}
+	for _, inst := range instances {
+		name := runnerMirrorName(pool.Name, inst)
+		seen[name] = struct{}{}
+		runner := &garmv1alpha1.Runner{}
+		key := types.NamespacedName{Namespace: pool.Namespace, Name: name}
+		if err := r.Get(ctx, key, runner); err != nil {
+			if !apierrors.IsNotFound(err) {
+				return err
+			}
+			runner = &garmv1alpha1.Runner{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      name,
+					Namespace: pool.Namespace,
+					Labels: map[string]string{
+						"garm.igrikus.dev/pool": pool.Name,
+					},
+					Annotations: map[string]string{
+						garmv1alpha1.AnnotationManagedBy: "garm-operator",
+					},
+				},
+				Spec: garmv1alpha1.RunnerSpec{PoolRef: garmv1alpha1.LocalObjectRef{Name: pool.Name}},
+			}
+			if err := controllerutil.SetControllerReference(pool, runner, r.Scheme); err != nil {
+				return err
+			}
+			if err := r.Create(ctx, runner); err != nil {
+				return err
+			}
+		}
+		updateRunnerStatus(runner, inst)
+		if err := r.Status().Update(ctx, runner); err != nil {
+			return err
+		}
+	}
+
+	list := &garmv1alpha1.RunnerList{}
+	if err := r.List(ctx, list, client.InNamespace(pool.Namespace)); err != nil {
+		return err
+	}
+	for i := range list.Items {
+		runner := &list.Items[i]
+		if runner.Spec.PoolRef.Name != pool.Name {
+			continue
+		}
+		if _, ok := seen[runner.Name]; ok {
+			continue
+		}
+		if err := r.Delete(ctx, runner); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+func updateRunnerStatus(runner *garmv1alpha1.Runner, inst garmparams.Instance) {
+	runner.Status.ID = inst.ID
+	runner.Status.Name = inst.Name
+	runner.Status.ProviderID = inst.ProviderID
+	runner.Status.RunnerStatus = string(inst.RunnerStatus)
+	runner.Status.AgentID = inst.AgentID
+	runner.Status.ObservedGeneration = runner.Generation
+	runner.Status.Addresses = runner.Status.Addresses[:0]
+	for _, addr := range inst.Addresses {
+		runner.Status.Addresses = append(runner.Status.Addresses, addr.Address)
+	}
+	meta.SetStatusCondition(&runner.Status.Conditions, metav1.Condition{
+		Type: garmv1alpha1.ConditionReady, Status: metav1.ConditionTrue,
+		Reason: garmv1alpha1.ReasonReconciled, ObservedGeneration: runner.Generation,
+	})
+}
+
+func runnerMirrorName(poolName string, inst garmparams.Instance) string {
+	source := inst.Name
+	if source == "" {
+		source = inst.ID
+	}
+	if source == "" {
+		source = inst.ProviderID
+	}
+	name := dnsLabel(poolName + "-" + source)
+	if len(name) > 63 {
+		name = name[:63]
+		name = strings.Trim(name, "-")
+	}
+	if name == "" {
+		return dnsLabel(poolName + "-runner")
+	}
+	return name
+}
+
+func dnsLabel(in string) string {
+	var b strings.Builder
+	lastDash := false
+	for _, r := range strings.ToLower(in) {
+		ok := unicode.IsLetter(r) || unicode.IsDigit(r)
+		if ok {
+			b.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash {
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+	return strings.Trim(b.String(), "-")
 }
 
 func buildPoolCreate(s *garmv1alpha1.PoolSpec, imageTag string) garmclient.PoolCreate {
@@ -393,7 +562,7 @@ func (r *PoolReconciler) scopeToPools(ctx context.Context, org client.Object) []
 	var out []reconcile.Request
 	for i := range list.Items {
 		p := &list.Items[i]
-		if p.Spec.ScopeRef.Kind == "GiteaOrganization" && p.Spec.ScopeRef.Name == org.GetName() {
+		if p.Spec.ScopeRef.Name == org.GetName() {
 			out = append(out, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: p.Namespace, Name: p.Name}})
 		}
 	}
@@ -406,6 +575,8 @@ func (r *PoolReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&garmv1alpha1.Pool{}).
 		Watches(&garmv1alpha1.Image{}, handler.EnqueueRequestsFromMapFunc(r.imageToPools)).
 		Watches(&garmv1alpha1.GiteaOrganization{}, handler.EnqueueRequestsFromMapFunc(r.scopeToPools)).
+		Watches(&garmv1alpha1.Repository{}, handler.EnqueueRequestsFromMapFunc(r.scopeToPools)).
+		Watches(&garmv1alpha1.Enterprise{}, handler.EnqueueRequestsFromMapFunc(r.scopeToPools)).
 		Named("pool").
 		Complete(r)
 }

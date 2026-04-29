@@ -39,12 +39,20 @@ type Interface interface {
 	GetGiteaEndpoint(ctx context.Context, name string) (*garmparams.ForgeEndpoint, error)
 	UpdateGiteaEndpoint(ctx context.Context, name string, in GiteaEndpointSpec) error
 	DeleteGiteaEndpoint(ctx context.Context, name string) error
+	CreateGithubEndpoint(ctx context.Context, in GithubEndpointSpec) (string, error)
+	GetGithubEndpoint(ctx context.Context, name string) (*garmparams.ForgeEndpoint, error)
+	UpdateGithubEndpoint(ctx context.Context, name string, in GithubEndpointSpec) error
+	DeleteGithubEndpoint(ctx context.Context, name string) error
 
 	// Credentials (Gitea).
 	CreateGiteaCredentials(ctx context.Context, in GiteaCredentialsSpec) (int64, error)
 	GetGiteaCredentials(ctx context.Context, id int64) (*garmparams.ForgeCredentials, error)
 	UpdateGiteaCredentials(ctx context.Context, id int64, in GiteaCredentialsUpdate) error
 	DeleteGiteaCredentials(ctx context.Context, id int64) error
+	CreateGithubCredentials(ctx context.Context, in GithubCredentialsSpec) (int64, error)
+	GetGithubCredentials(ctx context.Context, id int64) (*garmparams.ForgeCredentials, error)
+	UpdateGithubCredentials(ctx context.Context, id int64, in GithubCredentialsUpdate) error
+	DeleteGithubCredentials(ctx context.Context, id int64) error
 
 	// Organizations.
 	CreateOrg(ctx context.Context, in OrgSpec) (string, error)
@@ -52,9 +60,23 @@ type Interface interface {
 	UpdateOrg(ctx context.Context, id string, in OrgUpdate) error
 	DeleteOrg(ctx context.Context, id string) error
 
+	// Repositories and enterprises.
+	CreateRepo(ctx context.Context, in RepoSpec) (string, error)
+	GetRepo(ctx context.Context, id string) (*garmparams.Repository, error)
+	UpdateRepo(ctx context.Context, id string, in EntityUpdate) error
+	DeleteRepo(ctx context.Context, id string, keepWebhook bool) error
+	CreateEnterprise(ctx context.Context, in EnterpriseSpec) (string, error)
+	GetEnterprise(ctx context.Context, id string) (*garmparams.Enterprise, error)
+	UpdateEnterprise(ctx context.Context, id string, in EntityUpdate) error
+	DeleteEnterprise(ctx context.Context, id string) error
+
 	// Pools (org-scoped today; repo/enterprise added in Phase 5).
 	ListOrgPools(ctx context.Context, orgID string) ([]garmparams.Pool, error)
 	CreateOrgPool(ctx context.Context, orgID string, in PoolCreate) (string, error)
+	ListRepoPools(ctx context.Context, repoID string) ([]garmparams.Pool, error)
+	CreateRepoPool(ctx context.Context, repoID string, in PoolCreate) (string, error)
+	ListEnterprisePools(ctx context.Context, enterpriseID string) ([]garmparams.Pool, error)
+	CreateEnterprisePool(ctx context.Context, enterpriseID string, in PoolCreate) (string, error)
 	GetPool(ctx context.Context, id string) (*garmparams.Pool, error)
 	UpdatePool(ctx context.Context, id string, in PoolUpdate) error
 	DeletePool(ctx context.Context, id string) error

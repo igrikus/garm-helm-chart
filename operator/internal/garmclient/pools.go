@@ -15,8 +15,10 @@ import (
 	"encoding/json"
 
 	commonparams "github.com/cloudbase/garm-provider-common/params"
+	"github.com/cloudbase/garm/client/enterprises"
 	"github.com/cloudbase/garm/client/organizations"
 	"github.com/cloudbase/garm/client/pools"
+	"github.com/cloudbase/garm/client/repositories"
 	garmparams "github.com/cloudbase/garm/params"
 	"github.com/go-openapi/runtime"
 )
@@ -126,6 +128,72 @@ func (c *Client) ListOrgPools(ctx context.Context, orgID string) ([]garmparams.P
 	return out, err
 }
 
+func (c *Client) CreateRepoPool(ctx context.Context, repoID string, in PoolCreate) (string, error) {
+	var id string
+	err := c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
+		resp, err := c.api.Repositories.CreateRepoPool(&repositories.CreateRepoPoolParams{
+			Context: ctx,
+			RepoID:  repoID,
+			Body:    poolCreateBody(in),
+		}, auth)
+		if err != nil {
+			return err
+		}
+		id = resp.Payload.ID
+		return nil
+	})
+	return id, err
+}
+
+func (c *Client) ListRepoPools(ctx context.Context, repoID string) ([]garmparams.Pool, error) {
+	var out []garmparams.Pool
+	err := c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
+		resp, err := c.api.Repositories.ListRepoPools(&repositories.ListRepoPoolsParams{
+			Context: ctx,
+			RepoID:  repoID,
+		}, auth)
+		if err != nil {
+			return err
+		}
+		out = resp.Payload
+		return nil
+	})
+	return out, err
+}
+
+func (c *Client) CreateEnterprisePool(ctx context.Context, enterpriseID string, in PoolCreate) (string, error) {
+	var id string
+	err := c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
+		resp, err := c.api.Enterprises.CreateEnterprisePool(&enterprises.CreateEnterprisePoolParams{
+			Context:      ctx,
+			EnterpriseID: enterpriseID,
+			Body:         poolCreateBody(in),
+		}, auth)
+		if err != nil {
+			return err
+		}
+		id = resp.Payload.ID
+		return nil
+	})
+	return id, err
+}
+
+func (c *Client) ListEnterprisePools(ctx context.Context, enterpriseID string) ([]garmparams.Pool, error) {
+	var out []garmparams.Pool
+	err := c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
+		resp, err := c.api.Enterprises.ListEnterprisePools(&enterprises.ListEnterprisePoolsParams{
+			Context:      ctx,
+			EnterpriseID: enterpriseID,
+		}, auth)
+		if err != nil {
+			return err
+		}
+		out = resp.Payload
+		return nil
+	})
+	return out, err
+}
+
 func (c *Client) GetPool(ctx context.Context, id string) (*garmparams.Pool, error) {
 	var out garmparams.Pool
 	err := c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
@@ -143,6 +211,26 @@ func (c *Client) GetPool(ctx context.Context, id string) (*garmparams.Pool, erro
 		return nil, err
 	}
 	return &out, nil
+}
+
+func poolCreateBody(in PoolCreate) garmparams.CreatePoolParams {
+	body := garmparams.CreatePoolParams{
+		ProviderName:           in.ProviderName,
+		MaxRunners:             in.MaxRunners,
+		MinIdleRunners:         in.MinIdleRunners,
+		Image:                  in.Image,
+		Flavor:                 in.Flavor,
+		OSType:                 commonparams.OSType(in.OSType),
+		OSArch:                 commonparams.OSArch(in.OSArch),
+		Tags:                   in.Tags,
+		Enabled:                in.Enabled,
+		RunnerBootstrapTimeout: in.RunnerBootstrapTimeout,
+		ExtraSpecs:             in.ExtraSpecs,
+		GitHubRunnerGroup:      in.GitHubRunnerGroup,
+		Priority:               in.Priority,
+	}
+	body.RunnerPrefix = garmparams.RunnerPrefix{Prefix: in.RunnerPrefix}
+	return body
 }
 
 func (c *Client) UpdatePool(ctx context.Context, id string, in PoolUpdate) error {

@@ -31,7 +31,7 @@ spec:
         {{- toYaml .Values.controller.securityContext | nindent 8 }}
       containers:
         - name: manager
-          image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag }}"
+          image: "{{ .Values.controller.image.repository }}:{{ default .Chart.Version .Values.controller.image.tag }}"
           imagePullPolicy: {{ .Values.controller.image.pullPolicy }}
           args:
             {{- if .Values.controller.leaderElection }}

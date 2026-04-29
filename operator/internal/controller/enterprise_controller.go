@@ -6,23 +6,26 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
 */
 
 package controller
 
 import (
 	"context"
+	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	garmv1alpha1 "github.com/igrikus/garm-helm-chart/operator/api/v1alpha1"
 	"github.com/igrikus/garm-helm-chart/operator/internal/garmclient"
@@ -38,28 +41,191 @@ type EnterpriseReconciler struct {
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=enterprises,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=enterprises/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=enterprises/finalizers,verbs=update
+// +kubebuilder:rbac:groups=garm.igrikus.dev,resources=githubendpoints;githubcredentials,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Enterprise object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.3/pkg/reconcile
 func (r *EnterpriseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = logf.FromContext(ctx)
+	log := logf.FromContext(ctx)
 
-	// TODO(user): your logic here
+	obj := &garmv1alpha1.Enterprise{}
+	if err := r.Get(ctx, req.NamespacedName, obj); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
 
-	return ctrl.Result{}, nil
+	if !obj.DeletionTimestamp.IsZero() {
+		if controllerutil.ContainsFinalizer(obj, garmv1alpha1.Finalizer) {
+			if obj.Status.ID != "" {
+				if err := r.Garm.DeleteEnterprise(ctx, obj.Status.ID); err != nil && !garmclient.IsNotFound(err) {
+					log.Error(err, "delete enterprise")
+					return ctrl.Result{}, err
+				}
+			}
+			controllerutil.RemoveFinalizer(obj, garmv1alpha1.Finalizer)
+			if err := r.Update(ctx, obj); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		return ctrl.Result{}, nil
+	}
+
+	if !controllerutil.ContainsFinalizer(obj, garmv1alpha1.Finalizer) {
+		controllerutil.AddFinalizer(obj, garmv1alpha1.Finalizer)
+		return ctrl.Result{Requeue: true}, r.Update(ctx, obj)
+	}
+
+	credsName, err := r.resolveEnterpriseRefs(ctx, obj)
+	if err != nil {
+		return r.markEnterpriseFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss, err)
+	}
+	webhookSecret, err := r.resolveEnterpriseWebhookSecret(ctx, obj)
+	if err != nil {
+		return r.markEnterpriseFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss, err)
+	}
+	balancer := string(obj.Spec.PoolBalancerType)
+	if balancer == "" {
+		balancer = string(garmv1alpha1.PoolBalancerRoundRobin)
+	}
+
+	if obj.Status.ID == "" {
+		id, err := r.Garm.CreateEnterprise(ctx, garmclient.EnterpriseSpec{
+			Name: obj.Spec.Name, CredentialsName: credsName, WebhookSecret: webhookSecret, PoolBalancerType: balancer,
+		})
+		if err != nil {
+			return r.markEnterpriseFalse(ctx, obj, garmv1alpha1.ReasonAPIError, err)
+		}
+		obj.Status.ID = id
+	} else {
+		actual, gerr := r.Garm.GetEnterprise(ctx, obj.Status.ID)
+		if garmclient.IsNotFound(gerr) {
+			obj.Status.ID = ""
+			return ctrl.Result{Requeue: true}, r.Status().Update(ctx, obj)
+		}
+		if gerr != nil {
+			return r.markEnterpriseFalse(ctx, obj, garmv1alpha1.ReasonAPIError, gerr)
+		}
+		if actual.Name != obj.Spec.Name {
+			if err := r.Garm.DeleteEnterprise(ctx, obj.Status.ID); err != nil && !garmclient.IsNotFound(err) {
+				return r.markEnterpriseFalse(ctx, obj, garmv1alpha1.ReasonAPIError, err)
+			}
+			obj.Status.ID = ""
+			return ctrl.Result{Requeue: true}, r.Status().Update(ctx, obj)
+		}
+		upd := garmclient.EntityUpdate{}
+		actualCreds := actual.CredentialsName
+		if actualCreds == "" {
+			actualCreds = actual.Credentials.Name
+		}
+		if actualCreds != credsName {
+			n := credsName
+			upd.CredentialsName = &n
+		}
+		if string(actual.GetBalancerType()) != balancer {
+			b := balancer
+			upd.PoolBalancerType = &b
+		}
+		if obj.Spec.WebhookSecretRef != nil {
+			secret := webhookSecret
+			upd.WebhookSecret = &secret
+		}
+		if upd.CredentialsName != nil || upd.PoolBalancerType != nil || upd.WebhookSecret != nil {
+			if err := r.Garm.UpdateEnterprise(ctx, obj.Status.ID, upd); err != nil {
+				return r.markEnterpriseFalse(ctx, obj, garmv1alpha1.ReasonAPIError, err)
+			}
+		}
+	}
+
+	obj.Status.ObservedGeneration = obj.Generation
+	meta.SetStatusCondition(&obj.Status.Conditions, metav1.Condition{
+		Type: garmv1alpha1.ConditionReady, Status: metav1.ConditionTrue,
+		Reason: garmv1alpha1.ReasonReconciled, ObservedGeneration: obj.Generation,
+	})
+	if err := r.Status().Update(ctx, obj); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{RequeueAfter: requeueAfter}, nil
+}
+
+func (r *EnterpriseReconciler) resolveEnterpriseRefs(ctx context.Context, obj *garmv1alpha1.Enterprise) (string, error) {
+	if obj.Spec.ForgeRef.Kind != "GithubEndpoint" {
+		return "", fmt.Errorf("unsupported forgeRef.kind %q", obj.Spec.ForgeRef.Kind)
+	}
+	ep := &garmv1alpha1.GithubEndpoint{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: obj.Namespace, Name: obj.Spec.ForgeRef.Name}, ep); err != nil {
+		if apierrors.IsNotFound(err) {
+			return "", fmt.Errorf("github endpoint %s/%s not found", obj.Namespace, obj.Spec.ForgeRef.Name)
+		}
+		return "", err
+	}
+	if ep.Status.ID == "" {
+		return "", fmt.Errorf("github endpoint %s/%s not yet reconciled", obj.Namespace, ep.Name)
+	}
+	creds := &garmv1alpha1.GithubCredentials{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: obj.Namespace, Name: obj.Spec.CredentialsRef.Name}, creds); err != nil {
+		if apierrors.IsNotFound(err) {
+			return "", fmt.Errorf("github credentials %s/%s not found", obj.Namespace, obj.Spec.CredentialsRef.Name)
+		}
+		return "", err
+	}
+	if creds.Spec.EndpointRef.Name != obj.Spec.ForgeRef.Name {
+		return "", fmt.Errorf("credentials %s/%s reference endpoint %q, want %q", obj.Namespace, creds.Name, creds.Spec.EndpointRef.Name, obj.Spec.ForgeRef.Name)
+	}
+	if creds.Status.ID == "" {
+		return "", fmt.Errorf("github credentials %s/%s not yet reconciled", obj.Namespace, creds.Name)
+	}
+	return creds.Name, nil
+}
+
+func (r *EnterpriseReconciler) resolveEnterpriseWebhookSecret(ctx context.Context, obj *garmv1alpha1.Enterprise) (string, error) {
+	if obj.Spec.WebhookSecretRef == nil {
+		return "", nil
+	}
+	ref := obj.Spec.WebhookSecretRef
+	sec := &corev1.Secret{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: obj.Namespace, Name: ref.Name}, sec); err != nil {
+		if apierrors.IsNotFound(err) {
+			return "", fmt.Errorf("webhook secret %s/%s not found", obj.Namespace, ref.Name)
+		}
+		return "", err
+	}
+	v, ok := sec.Data[ref.Key]
+	if !ok || len(v) == 0 {
+		return "", fmt.Errorf("webhook secret %s/%s missing key %q", obj.Namespace, ref.Name, ref.Key)
+	}
+	return string(v), nil
+}
+
+func (r *EnterpriseReconciler) markEnterpriseFalse(ctx context.Context, obj *garmv1alpha1.Enterprise, reason string, cause error) (ctrl.Result, error) {
+	meta.SetStatusCondition(&obj.Status.Conditions, metav1.Condition{
+		Type: garmv1alpha1.ConditionReady, Status: metav1.ConditionFalse,
+		Reason: reason, Message: cause.Error(), ObservedGeneration: obj.Generation,
+	})
+	if err := r.Status().Update(ctx, obj); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, cause
+}
+
+func (r *EnterpriseReconciler) refToEnterprises(ctx context.Context, ref client.Object) []reconcile.Request {
+	list := &garmv1alpha1.EnterpriseList{}
+	if err := r.List(ctx, list, client.InNamespace(ref.GetNamespace())); err != nil {
+		return nil
+	}
+	var out []reconcile.Request
+	for i := range list.Items {
+		ent := &list.Items[i]
+		if ent.Spec.CredentialsRef.Name == ref.GetName() || ent.Spec.ForgeRef.Name == ref.GetName() {
+			out = append(out, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: ent.Namespace, Name: ent.Name}})
+		}
+	}
+	return out
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *EnterpriseReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&garmv1alpha1.Enterprise{}).
+		Watches(&garmv1alpha1.GithubEndpoint{}, handler.EnqueueRequestsFromMapFunc(r.refToEnterprises)).
+		Watches(&garmv1alpha1.GithubCredentials{}, handler.EnqueueRequestsFromMapFunc(r.refToEnterprises)).
 		Named("enterprise").
 		Complete(r)
 }
