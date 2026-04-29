@@ -141,6 +141,11 @@ spec:
   runnerBootstrapTimeoutMinutes: {{ default 20 $pool.runnerBootstrapTimeoutMinutes }}
   runnerPrefix: {{ $name | quote }}
   priority: {{ default 0 $pool.priority }}
+  {{- $templateName := coalesce $pool.runnerInstallTemplateName $pool.runnerInstallTemplate }}
+  {{- with $templateName }}
+  runnerInstallTemplateRef:
+    name: {{ . | quote }}
+  {{- end }}
   {{- with $pool.extraSpec }}
   extraSpecs:
     {{- toYaml . | nindent 4 }}
@@ -308,6 +313,11 @@ spec:
   githubRunnerGroup: {{ . | quote }}
   {{- end }}
   priority: {{ default 0 $pool.priority }}
+  {{- $templateName := coalesce $pool.runnerInstallTemplateName $pool.runnerInstallTemplate }}
+  {{- with $templateName }}
+  runnerInstallTemplateRef:
+    name: {{ . | quote }}
+  {{- end }}
   {{- with $pool.extraSpec }}
   extraSpecs:
     {{- toYaml . | nindent 4 }}

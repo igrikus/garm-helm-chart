@@ -25,6 +25,7 @@ rules:
   - pools
   - repositories
   - runners
+  - runnertemplates
   verbs:
   - create
   - delete
@@ -46,6 +47,7 @@ rules:
   - pools/finalizers
   - repositories/finalizers
   - runners/finalizers
+  - runnertemplates/finalizers
   verbs:
   - update
 - apiGroups:
@@ -61,6 +63,7 @@ rules:
   - pools/status
   - repositories/status
   - runners/status
+  - runnertemplates/status
   verbs:
   - get
   - patch

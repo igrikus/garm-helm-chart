@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -54,6 +55,7 @@ type PoolReconciler struct {
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=pools/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=pools/finalizers,verbs=update
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=images,verbs=get;list;watch
+// +kubebuilder:rbac:groups=garm.igrikus.dev,resources=runnertemplates,verbs=get;list;watch
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=giteaorganizations,verbs=get;list;watch
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=repositories;enterprises,verbs=get;list;watch
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=runners,verbs=get;list;watch;create;update;patch;delete
@@ -90,7 +92,12 @@ func (r *PoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
-	desired := buildPoolCreate(&obj.Spec, img.Spec.Tag)
+	templateID, err := r.resolveRunnerTemplate(ctx, obj)
+	if err != nil {
+		return r.markPoolFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss, err)
+	}
+
+	desired := buildPoolCreate(&obj.Spec, img.Spec.Tag, templateID)
 
 	if obj.Status.ID == "" {
 		id, err := r.adoptOrCreatePool(ctx, obj.Spec.ScopeRef.Kind, scopeID, desired)
@@ -183,6 +190,32 @@ func (r *PoolReconciler) resolvePoolScope(ctx context.Context, obj *garmv1alpha1
 	default:
 		return "", fmt.Errorf("scope kind %q not supported", obj.Spec.ScopeRef.Kind)
 	}
+}
+
+func (r *PoolReconciler) resolveRunnerTemplate(ctx context.Context, obj *garmv1alpha1.Pool) (uint, error) {
+	if obj.Spec.RunnerInstallTemplateRef == nil || obj.Spec.RunnerInstallTemplateRef.Name == "" {
+		return 0, nil
+	}
+	name := obj.Spec.RunnerInstallTemplateRef.Name
+	tpl := &garmv1alpha1.RunnerTemplate{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: obj.Namespace, Name: name}, tpl); err != nil {
+		if apierrors.IsNotFound(err) {
+			return 0, fmt.Errorf("runner template %s/%s not found", obj.Namespace, name)
+		}
+		return 0, err
+	}
+	if tpl.Status.ID == "" {
+		return 0, fmt.Errorf("runner template %s/%s not yet reconciled", obj.Namespace, name)
+	}
+	ready := meta.FindStatusCondition(tpl.Status.Conditions, garmv1alpha1.ConditionReady)
+	if ready == nil || ready.Status != metav1.ConditionTrue {
+		return 0, fmt.Errorf("runner template %s/%s is not ready", obj.Namespace, name)
+	}
+	id, err := strconv.ParseUint(tpl.Status.ID, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("runner template %s/%s has invalid status id %q", obj.Namespace, name, tpl.Status.ID)
+	}
+	return uint(id), nil
 }
 
 func (r *PoolReconciler) adoptOrCreatePool(ctx context.Context, scopeKind, scopeID string, desired garmclient.PoolCreate) (string, error) {
@@ -422,7 +455,7 @@ func dnsLabel(in string) string {
 	return strings.Trim(b.String(), "-")
 }
 
-func buildPoolCreate(s *garmv1alpha1.PoolSpec, imageTag string) garmclient.PoolCreate {
+func buildPoolCreate(s *garmv1alpha1.PoolSpec, imageTag string, templateID uint) garmclient.PoolCreate {
 	osType := string(s.OSType)
 	if osType == "" {
 		osType = "linux"
@@ -447,6 +480,7 @@ func buildPoolCreate(s *garmv1alpha1.PoolSpec, imageTag string) garmclient.PoolC
 		GitHubRunnerGroup:      s.GithubRunnerGroup,
 		RunnerPrefix:           s.RunnerPrefix,
 		Priority:               uint(s.Priority),
+		TemplateID:             templateID,
 	}
 	if s.ExtraSpecs != nil && len(s.ExtraSpecs.Raw) > 0 {
 		out.ExtraSpecs = json.RawMessage(s.ExtraSpecs.Raw)
@@ -536,6 +570,10 @@ func poolDiff(actual *garmparams.Pool, desired garmclient.PoolCreate) garmclient
 		v := desired.Priority
 		out.Priority = &v
 	}
+	if actual.TemplateID != desired.TemplateID {
+		v := desired.TemplateID
+		out.TemplateID = &v
+	}
 	return out
 }
 
@@ -548,6 +586,22 @@ func (r *PoolReconciler) imageToPools(ctx context.Context, img client.Object) []
 	for i := range list.Items {
 		p := &list.Items[i]
 		if p.Spec.ImageRef.Name == img.GetName() {
+			out = append(out, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: p.Namespace, Name: p.Name}})
+		}
+	}
+	return out
+}
+
+func (r *PoolReconciler) templateToPools(ctx context.Context, tpl client.Object) []reconcile.Request {
+	list := &garmv1alpha1.PoolList{}
+	if err := r.List(ctx, list, client.InNamespace(tpl.GetNamespace())); err != nil {
+		return nil
+	}
+	var out []reconcile.Request
+	for i := range list.Items {
+		p := &list.Items[i]
+		ref := p.Spec.RunnerInstallTemplateRef
+		if ref != nil && ref.Name == tpl.GetName() {
 			out = append(out, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: p.Namespace, Name: p.Name}})
 		}
 	}
@@ -574,6 +628,7 @@ func (r *PoolReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&garmv1alpha1.Pool{}).
 		Watches(&garmv1alpha1.Image{}, handler.EnqueueRequestsFromMapFunc(r.imageToPools)).
+		Watches(&garmv1alpha1.RunnerTemplate{}, handler.EnqueueRequestsFromMapFunc(r.templateToPools)).
 		Watches(&garmv1alpha1.GiteaOrganization{}, handler.EnqueueRequestsFromMapFunc(r.scopeToPools)).
 		Watches(&garmv1alpha1.Repository{}, handler.EnqueueRequestsFromMapFunc(r.scopeToPools)).
 		Watches(&garmv1alpha1.Enterprise{}, handler.EnqueueRequestsFromMapFunc(r.scopeToPools)).

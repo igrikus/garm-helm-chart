@@ -30,19 +30,21 @@ func (e *notFound) Error() string { return fmt.Sprintf("%s: not found", e.what) 
 func (e *notFound) Code() int     { return 404 }
 
 type Client struct {
-	Endpoints     map[string]garmparams.ForgeEndpoint
-	Credentials   map[int64]garmparams.ForgeCredentials
-	Orgs          map[string]garmparams.Organization
-	Repos         map[string]garmparams.Repository
-	Enterprises   map[string]garmparams.Enterprise
-	Pools         map[string]garmparams.Pool
-	Instances     map[string][]garmparams.Instance // keyed by pool ID
-	nextCredID    int64
-	nextOrgID     int
-	nextRepoID    int
-	nextEntID     int
-	nextPoolID    int
-	CreateOrgFail bool // toggle for negative tests
+	Endpoints      map[string]garmparams.ForgeEndpoint
+	Credentials    map[int64]garmparams.ForgeCredentials
+	Orgs           map[string]garmparams.Organization
+	Repos          map[string]garmparams.Repository
+	Enterprises    map[string]garmparams.Enterprise
+	Templates      map[uint]garmparams.Template
+	Pools          map[string]garmparams.Pool
+	Instances      map[string][]garmparams.Instance // keyed by pool ID
+	nextCredID     int64
+	nextOrgID      int
+	nextRepoID     int
+	nextEntID      int
+	nextTemplateID uint
+	nextPoolID     int
+	CreateOrgFail  bool // toggle for negative tests
 }
 
 func New() *Client {
@@ -52,6 +54,7 @@ func New() *Client {
 		Orgs:        map[string]garmparams.Organization{},
 		Repos:       map[string]garmparams.Repository{},
 		Enterprises: map[string]garmparams.Enterprise{},
+		Templates:   map[uint]garmparams.Template{},
 		Pools:       map[string]garmparams.Pool{},
 		Instances:   map[string][]garmparams.Instance{},
 	}
@@ -351,6 +354,72 @@ func (c *Client) DeleteEnterprise(_ context.Context, id string) error {
 	return nil
 }
 
+func (c *Client) ListTemplates(_ context.Context, osType, forgeType, partialName string) ([]garmparams.Template, error) {
+	var out []garmparams.Template
+	for _, t := range c.Templates {
+		if osType != "" && string(t.OSType) != osType {
+			continue
+		}
+		if forgeType != "" && string(t.ForgeType) != forgeType {
+			continue
+		}
+		if partialName != "" && t.Name != partialName {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out, nil
+}
+
+func (c *Client) CreateTemplate(_ context.Context, in garmclient.TemplateCreate) (uint, error) {
+	for _, t := range c.Templates {
+		if t.Name == in.Name && string(t.OSType) == in.OSType && string(t.ForgeType) == in.ForgeType {
+			return 0, errors.New("conflict")
+		}
+	}
+	c.nextTemplateID++
+	id := c.nextTemplateID
+	c.Templates[id] = garmparams.Template{
+		ID: id, Name: in.Name, Description: in.Description, Data: append([]byte(nil), in.Data...),
+		OSType: commonparams.OSType(in.OSType), ForgeType: garmparams.EndpointType(in.ForgeType),
+	}
+	return id, nil
+}
+
+func (c *Client) GetTemplate(_ context.Context, id uint) (*garmparams.Template, error) {
+	t, ok := c.Templates[id]
+	if !ok {
+		return nil, &notFound{what: fmt.Sprintf("template %d", id)}
+	}
+	return &t, nil
+}
+
+func (c *Client) UpdateTemplate(_ context.Context, id uint, in garmclient.TemplateUpdate) error {
+	t, ok := c.Templates[id]
+	if !ok {
+		return &notFound{what: fmt.Sprintf("template %d", id)}
+	}
+	if in.Name != nil {
+		t.Name = *in.Name
+	}
+	if in.Description != nil {
+		t.Description = *in.Description
+	}
+	if in.Data != nil {
+		t.Data = append([]byte(nil), in.Data...)
+	}
+	c.Templates[id] = t
+	return nil
+}
+
+func (c *Client) DeleteTemplate(_ context.Context, id uint) error {
+	if _, ok := c.Templates[id]; !ok {
+		return &notFound{what: fmt.Sprintf("template %d", id)}
+	}
+	delete(c.Templates, id)
+	return nil
+}
+
 func tagsFromStrings(in []string) []garmparams.Tag {
 	out := make([]garmparams.Tag, 0, len(in))
 	for _, t := range in {
@@ -388,6 +457,8 @@ func (c *Client) createPool(in garmclient.PoolCreate) string {
 		ExtraSpecs:             in.ExtraSpecs,
 		GitHubRunnerGroup:      in.GitHubRunnerGroup,
 		Priority:               in.Priority,
+		TemplateID:             in.TemplateID,
+		TemplateName:           templateName(c.Templates, in.TemplateID),
 		RunnerPrefix:           garmparams.RunnerPrefix{Prefix: in.RunnerPrefix},
 	}
 	return id
@@ -506,8 +577,19 @@ func (c *Client) UpdatePool(_ context.Context, id string, in garmclient.PoolUpda
 	if in.Priority != nil {
 		p.Priority = *in.Priority
 	}
+	if in.TemplateID != nil {
+		p.TemplateID = *in.TemplateID
+		p.TemplateName = templateName(c.Templates, *in.TemplateID)
+	}
 	c.Pools[id] = p
 	return nil
+}
+
+func templateName(templates map[uint]garmparams.Template, id uint) string {
+	if id == 0 {
+		return ""
+	}
+	return templates[id].Name
 }
 
 func (c *Client) DeletePool(_ context.Context, id string) error {

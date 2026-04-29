@@ -41,6 +41,7 @@ type PoolCreate struct {
 	GitHubRunnerGroup      string
 	RunnerPrefix           string
 	Priority               uint
+	TemplateID             uint
 }
 
 // PoolUpdate carries pointer fields so unset fields don't overwrite anything
@@ -60,6 +61,7 @@ type PoolUpdate struct {
 	GitHubRunnerGroup      *string
 	RunnerPrefix           *string
 	Priority               *uint
+	TemplateID             *uint
 }
 
 // IsEmpty reports whether the update would be a no-op.
@@ -76,7 +78,8 @@ func (u PoolUpdate) IsEmpty() bool {
 		u.ExtraSpecs == nil &&
 		u.GitHubRunnerGroup == nil &&
 		u.RunnerPrefix == nil &&
-		u.Priority == nil
+		u.Priority == nil &&
+		u.TemplateID == nil
 }
 
 func (c *Client) CreateOrgPool(ctx context.Context, orgID string, in PoolCreate) (string, error) {
@@ -95,6 +98,9 @@ func (c *Client) CreateOrgPool(ctx context.Context, orgID string, in PoolCreate)
 		ExtraSpecs:             in.ExtraSpecs,
 		GitHubRunnerGroup:      in.GitHubRunnerGroup,
 		Priority:               in.Priority,
+	}
+	if in.TemplateID != 0 {
+		body.TemplateID = &in.TemplateID
 	}
 	body.RunnerPrefix = garmparams.RunnerPrefix{Prefix: in.RunnerPrefix}
 	err := c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
@@ -229,6 +235,9 @@ func poolCreateBody(in PoolCreate) garmparams.CreatePoolParams {
 		GitHubRunnerGroup:      in.GitHubRunnerGroup,
 		Priority:               in.Priority,
 	}
+	if in.TemplateID != 0 {
+		body.TemplateID = &in.TemplateID
+	}
 	body.RunnerPrefix = garmparams.RunnerPrefix{Prefix: in.RunnerPrefix}
 	return body
 }
@@ -243,6 +252,7 @@ func (c *Client) UpdatePool(ctx context.Context, id string, in PoolUpdate) error
 		GitHubRunnerGroup:      in.GitHubRunnerGroup,
 		Priority:               in.Priority,
 		Tags:                   in.Tags,
+		TemplateID:             in.TemplateID,
 	}
 	if in.Image != nil {
 		body.Image = *in.Image

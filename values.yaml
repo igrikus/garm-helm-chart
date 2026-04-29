@@ -194,8 +194,15 @@ persistence:
   ## -- The size of the PVC.
   size: 1Gi
 
-## -- Runner templates are not supported by the Phase 5 CRD-based chart.
+## -- RunnerTemplate CRs that pools can reference by name.
 runnerTemplates: []
+  # - name: "linux-github"
+  #   description: "Custom Linux GitHub runner bootstrap"
+  #   osType: "linux"
+  #   forgeType: "github"
+  #   data: |
+  #     #!/bin/bash
+  #     echo "install runner"
 
 ## -- Configuration for different git forges.
 forges:
@@ -260,6 +267,7 @@ forges:
       #   maxRunners: 5
       #   enabled: true
       #   runnerBootstrapTimeoutMinutes: 20
+      #   runnerInstallTemplateName: "linux-gitea"
       #   priority: 0
       #   tags:
       #     - "my-garm-runner"
@@ -322,6 +330,7 @@ forges:
       #   providerName: "gcp"
       #   image: "ubuntu-24.04"
       #   flavor: "medium"
+      #   runnerInstallTemplateName: "linux-github"
 
 ## -- Configuration for different providers.
 providers: []

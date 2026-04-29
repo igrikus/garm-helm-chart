@@ -21,6 +21,7 @@ rules:
       - images
       - pools
       - repositories
+      - runnertemplates
       - runners
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["garm.igrikus.dev"]
@@ -34,6 +35,7 @@ rules:
       - images/finalizers
       - pools/finalizers
       - repositories/finalizers
+      - runnertemplates/finalizers
       - runners/finalizers
     verbs: ["update"]
   - apiGroups: ["garm.igrikus.dev"]
@@ -47,6 +49,7 @@ rules:
       - images/status
       - pools/status
       - repositories/status
+      - runnertemplates/status
       - runners/status
     verbs: ["get", "patch", "update"]
 ---

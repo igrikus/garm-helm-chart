@@ -6,12 +6,6 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
 */
 
 package controller
@@ -21,65 +15,54 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	garmv1alpha1 "github.com/igrikus/garm-helm-chart/operator/api/v1alpha1"
+	"github.com/igrikus/garm-helm-chart/operator/internal/garmclient/fake"
 )
 
 var _ = Describe("GithubEndpoint Controller", func() {
-	Context("When reconciling a resource", func() {
-		const resourceName = "test-resource"
+	const namespace = "default"
+	ctx := context.Background()
+	nsn := types.NamespacedName{Name: "github-endpoint", Namespace: namespace}
 
-		ctx := context.Background()
-
-		typeNamespacedName := types.NamespacedName{
-			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
+	AfterEach(func() {
+		obj := &garmv1alpha1.GithubEndpoint{}
+		if err := k8sClient.Get(ctx, nsn, obj); err == nil {
+			obj.Finalizers = nil
+			_ = k8sClient.Update(ctx, obj)
+			_ = k8sClient.Delete(ctx, obj)
 		}
-		githubendpoint := &garmv1alpha1.GithubEndpoint{}
+	})
 
-		BeforeEach(func() {
-			Skip("reconciler is a Phase 1 stub; tests will be rewritten in Phase 3+")
-			By("creating the custom resource for the Kind GithubEndpoint")
-			err := k8sClient.Get(ctx, typeNamespacedName, githubendpoint)
-			if err != nil && errors.IsNotFound(err) {
-				resource := &garmv1alpha1.GithubEndpoint{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: "default",
-					},
-					// TODO(user): Specify other spec details if needed.
-				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
-			}
-		})
+	It("creates the GitHub endpoint in GARM and sets Ready=True", func() {
+		Expect(k8sClient.Create(ctx, &garmv1alpha1.GithubEndpoint{
+			ObjectMeta: metav1.ObjectMeta{Name: nsn.Name, Namespace: namespace},
+			Spec: garmv1alpha1.GithubEndpointSpec{
+				BaseURL:     "https://github.com",
+				Description: "public github",
+			},
+		})).To(Succeed())
 
-		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &garmv1alpha1.GithubEndpoint{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			Expect(err).NotTo(HaveOccurred())
+		gc := fake.New()
+		r := &GithubEndpointReconciler{Client: k8sClient, Scheme: k8sClient.Scheme(), Garm: gc}
+		_, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: nsn})
+		Expect(err).NotTo(HaveOccurred())
+		_, err = r.Reconcile(ctx, reconcile.Request{NamespacedName: nsn})
+		Expect(err).NotTo(HaveOccurred())
 
-			By("Cleanup the specific resource instance GithubEndpoint")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
-		})
-		It("should successfully reconcile the resource", func() {
-			By("Reconciling the created resource")
-			controllerReconciler := &GithubEndpointReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
+		Expect(gc.Endpoints).To(HaveKey(nsn.Name))
+		Expect(gc.Endpoints[nsn.Name].APIBaseURL).To(Equal("https://api.github.com"))
+		Expect(gc.Endpoints[nsn.Name].UploadBaseURL).To(Equal("https://uploads.github.com"))
 
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
-			})
-			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
-		})
+		obj := &garmv1alpha1.GithubEndpoint{}
+		Expect(k8sClient.Get(ctx, nsn, obj)).To(Succeed())
+		Expect(obj.Status.ID).To(Equal(nsn.Name))
+		Expect(obj.Status.Conditions).To(ContainElement(And(
+			HaveField("Type", garmv1alpha1.ConditionReady),
+			HaveField("Status", metav1.ConditionTrue),
+		)))
 	})
 })

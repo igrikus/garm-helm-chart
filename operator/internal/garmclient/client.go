@@ -30,9 +30,7 @@ import (
 	garmparams "github.com/cloudbase/garm/params"
 )
 
-// Interface is the subset of GARM operations the reconcilers call. Real
-// Client and fake.Client both implement it. Methods are added as later
-// phases need them; nothing here is unused by current reconcilers.
+// Interface is the subset of GARM operations the reconcilers call.
 type Interface interface {
 	// Endpoints (Gitea).
 	CreateGiteaEndpoint(ctx context.Context, in GiteaEndpointSpec) (string, error)
@@ -70,7 +68,14 @@ type Interface interface {
 	UpdateEnterprise(ctx context.Context, id string, in EntityUpdate) error
 	DeleteEnterprise(ctx context.Context, id string) error
 
-	// Pools (org-scoped today; repo/enterprise added in Phase 5).
+	// Templates.
+	ListTemplates(ctx context.Context, osType, forgeType, partialName string) ([]garmparams.Template, error)
+	CreateTemplate(ctx context.Context, in TemplateCreate) (uint, error)
+	GetTemplate(ctx context.Context, id uint) (*garmparams.Template, error)
+	UpdateTemplate(ctx context.Context, id uint, in TemplateUpdate) error
+	DeleteTemplate(ctx context.Context, id uint) error
+
+	// Pools.
 	ListOrgPools(ctx context.Context, orgID string) ([]garmparams.Pool, error)
 	CreateOrgPool(ctx context.Context, orgID string, in PoolCreate) (string, error)
 	ListRepoPools(ctx context.Context, repoID string) ([]garmparams.Pool, error)
@@ -96,8 +101,7 @@ type Config struct {
 }
 
 // ConfigFromEnv reads GARM_BASE_URL / GARM_USERNAME / GARM_PASSWORD.
-// The operator deployment template (Phase 4) mounts these — typically
-// GARM_PASSWORD via secretKeyRef.
+// The operator deployment template mounts these, typically GARM_PASSWORD via secretKeyRef.
 func ConfigFromEnv() (Config, error) {
 	cfg := Config{
 		BaseURL:  os.Getenv("GARM_BASE_URL"),

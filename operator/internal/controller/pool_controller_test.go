@@ -55,6 +55,10 @@ var _ = Describe("Pool Controller", func() {
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: imageName, Namespace: namespace}, img); err == nil {
 			_ = k8sClient.Delete(ctx, img)
 		}
+		tpl := &garmv1alpha1.RunnerTemplate{}
+		if err := k8sClient.Get(ctx, types.NamespacedName{Name: "linux-template", Namespace: namespace}, tpl); err == nil {
+			_ = k8sClient.Delete(ctx, tpl)
+		}
 	})
 
 	newReconciler := func(gc *fake.Client) *PoolReconciler {
@@ -78,6 +82,26 @@ var _ = Describe("Pool Controller", func() {
 			ObjectMeta: metav1.ObjectMeta{Name: imageName, Namespace: namespace},
 			Spec:       garmv1alpha1.ImageSpec{Tag: "ubuntu-24.04"},
 		})).To(Succeed())
+	}
+
+	createReadyTemplate := func(id string) {
+		tpl := &garmv1alpha1.RunnerTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "linux-template", Namespace: namespace},
+			Spec: garmv1alpha1.RunnerTemplateSpec{
+				OSType:    garmv1alpha1.OSType("linux"),
+				ForgeType: garmv1alpha1.ForgeType("gitea"),
+				Data:      "install",
+			},
+		}
+		Expect(k8sClient.Create(ctx, tpl)).To(Succeed())
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "linux-template", Namespace: namespace}, tpl)).To(Succeed())
+		tpl.Status.ID = id
+		tpl.Status.Conditions = []metav1.Condition{{
+			Type: garmv1alpha1.ConditionReady, Status: metav1.ConditionTrue,
+			Reason: garmv1alpha1.ReasonReconciled, ObservedGeneration: tpl.Generation,
+			LastTransitionTime: metav1.Now(),
+		}}
+		Expect(k8sClient.Status().Update(ctx, tpl)).To(Succeed())
 	}
 
 	basePoolSpec := func() garmv1alpha1.PoolSpec {
@@ -288,5 +312,71 @@ var _ = Describe("Pool Controller", func() {
 				HaveField("Reason", garmv1alpha1.ReasonReferenceMiss),
 			),
 		))
+	})
+
+	It("marks Ready=False when the referenced runner template is missing", func() {
+		gc := fake.New()
+		createReadyOrg(gc)
+		createImage()
+		spec := basePoolSpec()
+		spec.RunnerInstallTemplateRef = &garmv1alpha1.LocalObjectRef{Name: "missing-template"}
+		createPool(spec)
+
+		r := newReconciler(gc)
+		_, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: poolNSN})
+		Expect(err).NotTo(HaveOccurred())
+		_, err = r.Reconcile(ctx, reconcile.Request{NamespacedName: poolNSN})
+		Expect(err).To(MatchError(ContainSubstring("runner template default/missing-template not found")))
+		Expect(gc.Pools).To(BeEmpty())
+	})
+
+	It("passes the runner template ID during pool create", func() {
+		gc := fake.New()
+		createReadyOrg(gc)
+		createImage()
+		createReadyTemplate("42")
+		spec := basePoolSpec()
+		spec.RunnerInstallTemplateRef = &garmv1alpha1.LocalObjectRef{Name: "linux-template"}
+		createPool(spec)
+
+		r := newReconciler(gc)
+		_, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: poolNSN})
+		Expect(err).NotTo(HaveOccurred())
+		_, err = r.Reconcile(ctx, reconcile.Request{NamespacedName: poolNSN})
+		Expect(err).NotTo(HaveOccurred())
+
+		for _, p := range gc.Pools {
+			Expect(p.TemplateID).To(Equal(uint(42)))
+			Expect(p.TemplateName).To(Equal(""))
+		}
+	})
+
+	It("updates pool template drift", func() {
+		gc := fake.New()
+		createReadyOrg(gc)
+		createImage()
+		createReadyTemplate("42")
+		spec := basePoolSpec()
+		spec.RunnerInstallTemplateRef = &garmv1alpha1.LocalObjectRef{Name: "linux-template"}
+		createPool(spec)
+
+		obj := &garmv1alpha1.Pool{}
+		Expect(k8sClient.Get(ctx, poolNSN, obj)).To(Succeed())
+		controllerutil.AddFinalizer(obj, garmv1alpha1.Finalizer)
+		Expect(k8sClient.Update(ctx, obj)).To(Succeed())
+		Expect(k8sClient.Get(ctx, poolNSN, obj)).To(Succeed())
+		obj.Status.ID = "pool-template-drift"
+		Expect(k8sClient.Status().Update(ctx, obj)).To(Succeed())
+		gc.Pools["pool-template-drift"] = garmparams.Pool{
+			ID: "pool-template-drift", ProviderName: "lxd", MaxRunners: 5, MinIdleRunners: 1,
+			Image: "ubuntu-24.04", Flavor: "medium", OSType: commonparams.OSType("linux"),
+			OSArch: commonparams.OSArch("amd64"), Tags: []garmparams.Tag{{Name: "linux"}, {Name: "self-hosted"}},
+			Enabled: true, RunnerBootstrapTimeout: 20, RunnerPrefix: garmparams.RunnerPrefix{Prefix: "ci"},
+			Priority: 10, OrgID: "org-1", TemplateID: 7,
+		}
+
+		_, err := newReconciler(gc).Reconcile(ctx, reconcile.Request{NamespacedName: poolNSN})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(gc.Pools["pool-template-drift"].TemplateID).To(Equal(uint(42)))
 	})
 })

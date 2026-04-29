@@ -254,6 +254,14 @@ func main() {
 		setupLog.Error(err, "Failed to create controller", "controller", "Image")
 		os.Exit(1)
 	}
+	if err := (&controller.RunnerTemplateReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		Garm:   garm,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "Failed to create controller", "controller", "RunnerTemplate")
+		os.Exit(1)
+	}
 	if err := (&controller.PoolReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
