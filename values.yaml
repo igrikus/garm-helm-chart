@@ -130,8 +130,8 @@ resources:
     requests:
       cpu: 50m
       memory: 128Mi
-  ## -- Resources for the GARM controller manager.
-  controller:
+  ## -- Resources for the GARM operator manager.
+  operator:
     limits:
       cpu: 500m
       memory: 128Mi
@@ -139,8 +139,8 @@ resources:
       cpu: 10m
       memory: 64Mi
 
-## -- GARM controller manager configuration.
-controller:
+## -- GARM operator manager configuration.
+operator:
   enabled: true
   image:
     repository: "ghcr.io/igrikus/garm-operator"

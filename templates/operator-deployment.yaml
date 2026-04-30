@@ -1,4 +1,4 @@
-{{- if .Values.controller.enabled -}}
+{{- if .Values.operator.enabled -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,7 +7,7 @@ metadata:
     {{- include "garm.labels" . | nindent 4 }}
     app.kubernetes.io/component: controller
 spec:
-  replicas: {{ .Values.controller.replicas }}
+  replicas: {{ .Values.operator.replicas }}
   selector:
     matchLabels:
       {{- include "garm.selectorLabels" . | nindent 6 }}
@@ -16,25 +16,25 @@ spec:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: manager
-        {{- with .Values.controller.podAnnotations }}
+        {{- with .Values.operator.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
         {{- include "garm.labels" . | nindent 8 }}
         app.kubernetes.io/component: controller
-        {{- with .Values.controller.podLabels }}
+        {{- with .Values.operator.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
       serviceAccountName: {{ include "garm.controllerServiceAccountName" . }}
       securityContext:
-        {{- toYaml .Values.controller.securityContext | nindent 8 }}
+        {{- toYaml .Values.operator.securityContext | nindent 8 }}
       containers:
         - name: manager
-          image: "{{ .Values.controller.image.repository }}:{{ default .Chart.Version .Values.controller.image.tag }}"
-          imagePullPolicy: {{ .Values.controller.image.pullPolicy }}
+          image: "{{ .Values.operator.image.repository }}:{{ default .Chart.Version .Values.operator.image.tag }}"
+          imagePullPolicy: {{ .Values.operator.image.pullPolicy }}
           args:
-            {{- if .Values.controller.leaderElection }}
+            {{- if .Values.operator.leaderElection }}
             - --leader-elect
             {{- end }}
             - --health-probe-bind-address=:8081
@@ -52,7 +52,7 @@ spec:
                   name: {{ include "garm.admin-secret-name" . }}
                   key: {{ .Values.garm.admin.passwordKey }}
           securityContext:
-            {{- toYaml .Values.controller.containerSecurityContext | nindent 12 }}
+            {{- toYaml .Values.operator.containerSecurityContext | nindent 12 }}
           livenessProbe:
             httpGet:
               path: /healthz
@@ -65,7 +65,7 @@ spec:
               port: 8081
             initialDelaySeconds: 5
             periodSeconds: 10
-          {{- with .Values.resources.controller }}
+          {{- with .Values.resources.operator }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}

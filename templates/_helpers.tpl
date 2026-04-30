@@ -69,10 +69,10 @@ Create the name of the service account to use
 {{- end -}}
 
 {{- define "garm.controllerServiceAccountName" -}}
-{{- if .Values.controller.serviceAccount.create }}
-{{- default (include "garm.controllerName" .) .Values.controller.serviceAccount.name }}
+{{- if .Values.operator.serviceAccount.create }}
+{{- default (include "garm.controllerName" .) .Values.operator.serviceAccount.name }}
 {{- else }}
-{{- default "default" .Values.controller.serviceAccount.name }}
+{{- default "default" .Values.operator.serviceAccount.name }}
 {{- end }}
 {{- end -}}
 
