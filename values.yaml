@@ -213,6 +213,7 @@ forges:
   gitea:
     ## -- GiteaEndpoint CRs.
     endpoints: []
+      #   ## -- Item names become Kubernetes resource names and must be lowercase RFC 1123 subdomains.
       # - name: "my-gitea"
       #   baseURL: "https://gitea.example.com"
       #   apiBaseURL: "https://gitea.example.com/api/v1"
@@ -223,6 +224,7 @@ forges:
 
     ## -- GiteaCredentials CRs.
     credentials: []
+      #   ## -- Item names become Kubernetes resource names and must be lowercase RFC 1123 subdomains.
       # - name: "my-gitea"
       #   endpointName: "my-gitea"
       #   description: "Gitea PAT"
@@ -232,6 +234,7 @@ forges:
 
     ## -- GiteaOrganization CRs.
     organizations: []
+      #   ## -- Item names become Kubernetes resource names and must be lowercase RFC 1123 subdomains.
       # - name: "my-org"
       #   endpointName: "my-gitea"
       #   credentialsName: "my-gitea"
@@ -243,6 +246,7 @@ forges:
 
     ## -- Gitea Repository CRs.
     repositories: []
+      #   ## -- Item names become Kubernetes resource names and must be lowercase RFC 1123 subdomains.
       # - name: "my-repo"
       #   endpointName: "my-gitea"
       #   credentialsName: "my-gitea"
@@ -255,12 +259,14 @@ forges:
 
     ## -- Org- or repository-scoped Gitea Image and Pool CRs. pools[].name is required and becomes spec.runnerPrefix.
     pools: []
+      #   ## -- Item names become Kubernetes resource names and must be lowercase RFC 1123 subdomains.
       # - name: "my-pool"
       #   organizationName: "my-org"
       #   repositoryName: ""
       #   endpointName: "my-gitea"
       #   providerName: "gcp"
       #   image: "ubuntu-24.04"
+      #   ## -- imageName becomes a Kubernetes Image resource name and must be a lowercase RFC 1123 subdomain.
       #   imageName: "my-pool-image"
       #   imageDescription: "Ubuntu runner image"
       #   flavor: "medium"
@@ -282,6 +288,7 @@ forges:
   ## -- GitHub server configurations.
   github:
     endpoints: []
+      #   ## -- Item names become Kubernetes resource names and must be lowercase RFC 1123 subdomains.
       # - name: "github"
       #   baseURL: "https://github.com"
       #   apiBaseURL: ""
@@ -291,6 +298,7 @@ forges:
       #     name: "github-ca"
       #     key: "ca.crt"
     credentials: []
+      #   ## -- Item names become Kubernetes resource names and must be lowercase RFC 1123 subdomains.
       # - name: "github-pat"
       #   endpointName: "github"
       #   description: "GitHub PAT"
@@ -308,6 +316,7 @@ forges:
       #       name: "github-app-key"
       #       key: "private-key.pem"
     repositories: []
+      #   ## -- Item names become Kubernetes resource names and must be lowercase RFC 1123 subdomains.
       # - name: "github-repo"
       #   endpointName: "github"
       #   credentialsName: "github-pat"
@@ -318,6 +327,7 @@ forges:
       #     name: "github-webhook"
       #     key: "secret"
     enterprises: []
+      #   ## -- Item names become Kubernetes resource names and must be lowercase RFC 1123 subdomains.
       # - name: "github-enterprise"
       #   endpointName: "github"
       #   credentialsName: "github-app"
@@ -327,11 +337,14 @@ forges:
       #     name: "github-webhook"
       #     key: "secret"
     pools: []
+      #   ## -- Item names become Kubernetes resource names and must be lowercase RFC 1123 subdomains.
       # - name: "github-repo-pool"
       #   repositoryName: "github-repo"
       #   endpointName: "github"
       #   providerName: "gcp"
       #   image: "ubuntu-24.04"
+      #   ## -- imageName becomes a Kubernetes Image resource name and must be a lowercase RFC 1123 subdomain.
+      #   imageName: "github-repo-pool-image"
       #   flavor: "medium"
       #   runnerInstallTemplateName: "linux-github"
 
