@@ -23,6 +23,9 @@ type EnterpriseSpec struct {
 	// Name is the GitHub Enterprise slug.
 	Name string `json:"name"`
 
+	// WebhookSecretRef holds the shared secret for incoming enterprise webhooks. Optional;
+	// when omitted, the operator generates a transient secret and GARM stores it encrypted.
+	// Enterprise webhook installation remains manual in GARM.
 	// +optional
 	WebhookSecretRef *SecretKeyRef `json:"webhookSecretRef,omitempty"`
 

@@ -59,6 +59,12 @@ spec:
   {{- with $org.poolBalancerType }}
   poolBalancerType: {{ . | quote }}
   {{- end }}
+  {{- if hasKey $org "installWebhook" }}
+  installWebhook: {{ $org.installWebhook }}
+  {{- end }}
+  {{- with $org.webhookInsecureSSL }}
+  webhookInsecureSSL: {{ . }}
+  {{- end }}
   {{- with $org.webhookSecretRef }}
   webhookSecretRef:
     name: {{ required (printf "forges.gitea.organizations[%s].webhookSecretRef.name is required" $name) .name | quote }}
@@ -84,6 +90,12 @@ spec:
   name: {{ required (printf "forges.gitea.repositories[%s].repositoryName is required" $name) $repo.repositoryName | quote }}
   {{- with $repo.poolBalancerType }}
   poolBalancerType: {{ . | quote }}
+  {{- end }}
+  {{- if hasKey $repo "installWebhook" }}
+  installWebhook: {{ $repo.installWebhook }}
+  {{- end }}
+  {{- with $repo.webhookInsecureSSL }}
+  webhookInsecureSSL: {{ . }}
   {{- end }}
   {{- with $repo.webhookSecretRef }}
   webhookSecretRef:
@@ -228,6 +240,12 @@ spec:
   name: {{ required (printf "forges.github.repositories[%s].repositoryName is required" $name) $repo.repositoryName | quote }}
   {{- with $repo.poolBalancerType }}
   poolBalancerType: {{ . | quote }}
+  {{- end }}
+  {{- if hasKey $repo "installWebhook" }}
+  installWebhook: {{ $repo.installWebhook }}
+  {{- end }}
+  {{- with $repo.webhookInsecureSSL }}
+  webhookInsecureSSL: {{ . }}
   {{- end }}
   {{- with $repo.webhookSecretRef }}
   webhookSecretRef:

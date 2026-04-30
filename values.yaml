@@ -240,6 +240,11 @@ forges:
       #   credentialsName: "my-gitea"
       #   organizationName: "MyGiteaOrg"
       #   poolBalancerType: "roundrobin"
+      #   ## If webhookSecretRef is omitted, the operator generates a random secret
+      #   ## and passes it once to GARM during creation. GARM stores it encrypted.
+      #   ## installWebhook defaults to true only when webhookSecretRef is omitted.
+      #   installWebhook: true
+      #   webhookInsecureSSL: false
       #   webhookSecretRef:
       #     name: "gitea-webhook"
       #     key: "secret"
@@ -253,6 +258,11 @@ forges:
       #   owner: "MyGiteaOrg"
       #   repositoryName: "my-repo"
       #   poolBalancerType: "roundrobin"
+      #   ## If webhookSecretRef is omitted, the operator generates a random secret
+      #   ## and passes it once to GARM during creation. GARM stores it encrypted.
+      #   ## installWebhook defaults to true only when webhookSecretRef is omitted.
+      #   installWebhook: true
+      #   webhookInsecureSSL: false
       #   webhookSecretRef:
       #     name: "gitea-webhook"
       #     key: "secret"
@@ -323,6 +333,11 @@ forges:
       #   owner: "my-org"
       #   repositoryName: "my-repo"
       #   poolBalancerType: "roundrobin"
+      #   ## If webhookSecretRef is omitted, the operator generates a random secret
+      #   ## and passes it once to GARM during creation. GARM stores it encrypted.
+      #   ## installWebhook defaults to true only when webhookSecretRef is omitted.
+      #   installWebhook: true
+      #   webhookInsecureSSL: false
       #   webhookSecretRef:
       #     name: "github-webhook"
       #     key: "secret"

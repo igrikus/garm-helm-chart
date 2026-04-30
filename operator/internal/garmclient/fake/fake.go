@@ -38,12 +38,15 @@ type Client struct {
 	Templates      map[uint]garmparams.Template
 	Pools          map[string]garmparams.Pool
 	Instances      map[string][]garmparams.Instance // keyed by pool ID
+	OrgHooks       map[string]garmparams.HookInfo
+	RepoHooks      map[string]garmparams.HookInfo
 	nextCredID     int64
 	nextOrgID      int
 	nextRepoID     int
 	nextEntID      int
 	nextTemplateID uint
 	nextPoolID     int
+	nextHookID     int64
 	CreateOrgFail  bool // toggle for negative tests
 }
 
@@ -57,6 +60,8 @@ func New() *Client {
 		Templates:   map[uint]garmparams.Template{},
 		Pools:       map[string]garmparams.Pool{},
 		Instances:   map[string][]garmparams.Instance{},
+		OrgHooks:    map[string]garmparams.HookInfo{},
+		RepoHooks:   map[string]garmparams.HookInfo{},
 	}
 }
 
@@ -230,10 +235,14 @@ func (c *Client) CreateOrg(_ context.Context, in garmclient.OrgSpec) (string, er
 	if c.CreateOrgFail {
 		return "", errors.New("induced failure")
 	}
+	if in.WebhookSecret == "" {
+		return "", errors.New("missing secret")
+	}
 	c.nextOrgID++
 	id := fmt.Sprintf("org-%d", c.nextOrgID)
 	c.Orgs[id] = garmparams.Organization{
 		ID: id, Name: in.Name, CredentialsName: in.CredentialsName,
+		WebhookSecret: in.WebhookSecret,
 	}
 	return id, nil
 }
@@ -254,6 +263,9 @@ func (c *Client) UpdateOrg(_ context.Context, id string, in garmclient.OrgUpdate
 	if in.CredentialsName != nil {
 		o.CredentialsName = *in.CredentialsName
 	}
+	if in.WebhookSecret != nil {
+		o.WebhookSecret = *in.WebhookSecret
+	}
 	c.Orgs[id] = o
 	return nil
 }
@@ -263,10 +275,35 @@ func (c *Client) DeleteOrg(_ context.Context, id string) error {
 		return &notFound{what: "org " + id}
 	}
 	delete(c.Orgs, id)
+	delete(c.OrgHooks, id)
 	return nil
 }
 
+func (c *Client) GetOrgWebhookInfo(_ context.Context, id string) (*garmparams.HookInfo, error) {
+	h, ok := c.OrgHooks[id]
+	if !ok {
+		return nil, &notFound{what: "org hook " + id}
+	}
+	return &h, nil
+}
+
+func (c *Client) InstallOrgWebhook(_ context.Context, id string, in garmclient.WebhookInstall) (*garmparams.HookInfo, error) {
+	if _, ok := c.Orgs[id]; !ok {
+		return nil, &notFound{what: "org " + id}
+	}
+	if _, ok := c.OrgHooks[id]; ok {
+		return nil, errors.New("conflict")
+	}
+	c.nextHookID++
+	h := garmparams.HookInfo{ID: c.nextHookID, URL: "https://garm.example.com/webhooks/controller", Active: true, InsecureSSL: in.InsecureSSL, Events: []string{"workflow_job"}}
+	c.OrgHooks[id] = h
+	return &h, nil
+}
+
 func (c *Client) CreateRepo(_ context.Context, in garmclient.RepoSpec) (string, error) {
+	if in.WebhookSecret == "" {
+		return "", errors.New("missing secret")
+	}
 	c.nextRepoID++
 	id := fmt.Sprintf("repo-%d", c.nextRepoID)
 	c.Repos[id] = garmparams.Repository{
@@ -274,6 +311,7 @@ func (c *Client) CreateRepo(_ context.Context, in garmclient.RepoSpec) (string, 
 		PoolBalancerType: garmparams.PoolBalancerType(in.PoolBalancerType),
 		Credentials:      garmparams.ForgeCredentials{Name: in.CredentialsName, ForgeType: garmparams.EndpointType(in.ForgeType)},
 		Endpoint:         garmparams.ForgeEndpoint{EndpointType: garmparams.EndpointType(in.ForgeType)},
+		WebhookSecret:    in.WebhookSecret,
 	}
 	return id, nil
 }
@@ -298,6 +336,9 @@ func (c *Client) UpdateRepo(_ context.Context, id string, in garmclient.EntityUp
 	if in.PoolBalancerType != nil {
 		r.PoolBalancerType = garmparams.PoolBalancerType(*in.PoolBalancerType)
 	}
+	if in.WebhookSecret != nil {
+		r.WebhookSecret = *in.WebhookSecret
+	}
 	c.Repos[id] = r
 	return nil
 }
@@ -307,10 +348,35 @@ func (c *Client) DeleteRepo(_ context.Context, id string, _ bool) error {
 		return &notFound{what: "repo " + id}
 	}
 	delete(c.Repos, id)
+	delete(c.RepoHooks, id)
 	return nil
 }
 
+func (c *Client) GetRepoWebhookInfo(_ context.Context, id string) (*garmparams.HookInfo, error) {
+	h, ok := c.RepoHooks[id]
+	if !ok {
+		return nil, &notFound{what: "repo hook " + id}
+	}
+	return &h, nil
+}
+
+func (c *Client) InstallRepoWebhook(_ context.Context, id string, in garmclient.WebhookInstall) (*garmparams.HookInfo, error) {
+	if _, ok := c.Repos[id]; !ok {
+		return nil, &notFound{what: "repo " + id}
+	}
+	if _, ok := c.RepoHooks[id]; ok {
+		return nil, errors.New("conflict")
+	}
+	c.nextHookID++
+	h := garmparams.HookInfo{ID: c.nextHookID, URL: "https://garm.example.com/webhooks/controller", Active: true, InsecureSSL: in.InsecureSSL, Events: []string{"workflow_job"}}
+	c.RepoHooks[id] = h
+	return &h, nil
+}
+
 func (c *Client) CreateEnterprise(_ context.Context, in garmclient.EnterpriseSpec) (string, error) {
+	if in.WebhookSecret == "" {
+		return "", errors.New("missing secret")
+	}
 	c.nextEntID++
 	id := fmt.Sprintf("enterprise-%d", c.nextEntID)
 	c.Enterprises[id] = garmparams.Enterprise{
@@ -318,6 +384,7 @@ func (c *Client) CreateEnterprise(_ context.Context, in garmclient.EnterpriseSpe
 		PoolBalancerType: garmparams.PoolBalancerType(in.PoolBalancerType),
 		Credentials:      garmparams.ForgeCredentials{Name: in.CredentialsName, ForgeType: garmparams.GithubEndpointType},
 		Endpoint:         garmparams.ForgeEndpoint{EndpointType: garmparams.GithubEndpointType},
+		WebhookSecret:    in.WebhookSecret,
 	}
 	return id, nil
 }
@@ -341,6 +408,9 @@ func (c *Client) UpdateEnterprise(_ context.Context, id string, in garmclient.En
 	}
 	if in.PoolBalancerType != nil {
 		e.PoolBalancerType = garmparams.PoolBalancerType(*in.PoolBalancerType)
+	}
+	if in.WebhookSecret != nil {
+		e.WebhookSecret = *in.WebhookSecret
 	}
 	c.Enterprises[id] = e
 	return nil

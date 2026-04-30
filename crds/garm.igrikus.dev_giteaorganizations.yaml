@@ -74,6 +74,11 @@ spec:
                 required:
                 - name
                 type: object
+              installWebhook:
+                description: |-
+                  InstallWebhook asks GARM to install/manage the forge webhook for this organization.
+                  When omitted, it defaults to true only when webhookSecretRef is omitted.
+                type: boolean
               name:
                 description: Name is the Gitea organization name on the forge side.
                 type: string
@@ -85,10 +90,14 @@ spec:
                 - roundrobin
                 - pack
                 type: string
+              webhookInsecureSSL:
+                description: WebhookInsecureSSL disables SSL verification for the
+                  installed forge webhook.
+                type: boolean
               webhookSecretRef:
                 description: |-
                   WebhookSecretRef holds the shared secret for incoming Gitea webhooks. Optional;
-                  GARM auto-manages the webhook when provided.
+                  when omitted, the operator generates a transient secret and GARM stores it encrypted.
                 properties:
                   key:
                     type: string

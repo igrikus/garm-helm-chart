@@ -71,6 +71,13 @@ var _ = Describe("Repository Controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(gc.Repos).To(HaveLen(1))
+		var repoID string
+		for _, repo := range gc.Repos {
+			repoID = repo.ID
+			Expect(repo.WebhookSecret).NotTo(BeEmpty())
+		}
+		Expect(gc.RepoHooks).To(HaveKey(repoID))
+
 		obj := &garmv1alpha1.Repository{}
 		Expect(k8sClient.Get(ctx, repoNSN, obj)).To(Succeed())
 		Expect(obj.Status.ID).NotTo(BeEmpty())

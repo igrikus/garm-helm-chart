@@ -89,8 +89,10 @@ spec:
                 - pack
                 type: string
               webhookSecretRef:
-                description: SecretKeyRef references a single key inside a Secret
-                  in the same namespace.
+                description: |-
+                  WebhookSecretRef holds the shared secret for incoming enterprise webhooks. Optional;
+                  when omitted, the operator generates a transient secret and GARM stores it encrypted.
+                  Enterprise webhook installation remains manual in GARM.
                 properties:
                   key:
                     type: string

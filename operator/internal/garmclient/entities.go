@@ -41,6 +41,10 @@ type EntityUpdate struct {
 	PoolBalancerType *string
 }
 
+type WebhookInstall struct {
+	InsecureSSL bool
+}
+
 func (c *Client) CreateRepo(ctx context.Context, in RepoSpec) (string, error) {
 	var id string
 	err := c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
@@ -102,6 +106,48 @@ func (c *Client) DeleteRepo(ctx context.Context, id string, keepWebhook bool) er
 			KeepWebhook: &keepWebhook,
 		}, auth)
 	})
+}
+
+func (c *Client) GetRepoWebhookInfo(ctx context.Context, id string) (*garmparams.HookInfo, error) {
+	var out garmparams.HookInfo
+	err := c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
+		resp, err := c.api.Repositories.GetRepoWebhookInfo(&repositories.GetRepoWebhookInfoParams{
+			Context: ctx,
+			RepoID:  id,
+		}, auth)
+		if err != nil {
+			return err
+		}
+		out = resp.Payload
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) InstallRepoWebhook(ctx context.Context, id string, in WebhookInstall) (*garmparams.HookInfo, error) {
+	var out garmparams.HookInfo
+	err := c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
+		resp, err := c.api.Repositories.InstallRepoWebhook(&repositories.InstallRepoWebhookParams{
+			Context: ctx,
+			RepoID:  id,
+			Body: garmparams.InstallWebhookParams{
+				WebhookEndpointType: garmparams.WebhookEndpointDirect,
+				InsecureSSL:         in.InsecureSSL,
+			},
+		}, auth)
+		if err != nil {
+			return err
+		}
+		out = resp.Payload
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 func (c *Client) CreateEnterprise(ctx context.Context, in EnterpriseSpec) (string, error) {

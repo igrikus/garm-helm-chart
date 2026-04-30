@@ -44,6 +44,7 @@ type GiteaOrganizationReconciler struct {
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=giteaorganizations/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=giteaorganizations/finalizers,verbs=update
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=giteacredentials,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 
 func (r *GiteaOrganizationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
@@ -87,17 +88,16 @@ func (r *GiteaOrganizationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			fmt.Errorf("credentials %s/%s not yet reconciled", obj.Namespace, creds.Name))
 	}
 
-	webhookSecret, err := r.resolveWebhookSecret(ctx, obj)
-	if err != nil {
-		return r.markOrgFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss, err)
-	}
-
 	balancer := string(obj.Spec.PoolBalancerType)
 	if balancer == "" {
 		balancer = string(garmv1alpha1.PoolBalancerRoundRobin)
 	}
 
 	if obj.Status.ID == "" {
+		webhookSecret, err := createWebhookSecret(ctx, r.Client, obj.Namespace, obj.Spec.WebhookSecretRef)
+		if err != nil {
+			return r.markOrgFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss, err)
+		}
 		id, err := r.Garm.CreateOrg(ctx, garmclient.OrgSpec{
 			Name:             obj.Spec.Name,
 			CredentialsName:  creds.Name,
@@ -127,8 +127,26 @@ func (r *GiteaOrganizationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			b := balancer
 			upd.PoolBalancerType = &b
 		}
-		if upd.CredentialsName != nil || upd.PoolBalancerType != nil {
+		if obj.Spec.WebhookSecretRef != nil {
+			secret, err := readWebhookSecret(ctx, r.Client, obj.Namespace, *obj.Spec.WebhookSecretRef)
+			if err != nil {
+				return r.markOrgFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss, err)
+			}
+			upd.WebhookSecret = &secret
+		}
+		if upd.CredentialsName != nil || upd.PoolBalancerType != nil || upd.WebhookSecret != nil {
 			if err := r.Garm.UpdateOrg(ctx, obj.Status.ID, upd); err != nil {
+				return r.markOrgFalse(ctx, obj, garmv1alpha1.ReasonAPIError, err)
+			}
+		}
+	}
+
+	if shouldInstallWebhook(obj.Spec.WebhookSecretRef == nil, obj.Spec.InstallWebhook) {
+		if _, err := r.Garm.GetOrgWebhookInfo(ctx, obj.Status.ID); err != nil {
+			if !garmclient.IsNotFound(err) {
+				return r.markOrgFalse(ctx, obj, garmv1alpha1.ReasonAPIError, err)
+			}
+			if _, err := r.Garm.InstallOrgWebhook(ctx, obj.Status.ID, garmclient.WebhookInstall{InsecureSSL: obj.Spec.WebhookInsecureSSL}); err != nil {
 				return r.markOrgFalse(ctx, obj, garmv1alpha1.ReasonAPIError, err)
 			}
 		}
@@ -145,25 +163,6 @@ func (r *GiteaOrganizationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	return ctrl.Result{RequeueAfter: requeueAfter}, nil
 }
 
-func (r *GiteaOrganizationReconciler) resolveWebhookSecret(ctx context.Context, obj *garmv1alpha1.GiteaOrganization) (string, error) {
-	if obj.Spec.WebhookSecretRef == nil {
-		return "", nil
-	}
-	ref := obj.Spec.WebhookSecretRef
-	sec := &corev1.Secret{}
-	if err := r.Get(ctx, types.NamespacedName{Namespace: obj.Namespace, Name: ref.Name}, sec); err != nil {
-		if apierrors.IsNotFound(err) {
-			return "", fmt.Errorf("webhook secret %s/%s not found", obj.Namespace, ref.Name)
-		}
-		return "", err
-	}
-	v, ok := sec.Data[ref.Key]
-	if !ok || len(v) == 0 {
-		return "", fmt.Errorf("webhook secret %s/%s missing key %q", obj.Namespace, ref.Name, ref.Key)
-	}
-	return string(v), nil
-}
-
 func (r *GiteaOrganizationReconciler) markOrgFalse(ctx context.Context, obj *garmv1alpha1.GiteaOrganization, reason string, cause error) (ctrl.Result, error) {
 	meta.SetStatusCondition(&obj.Status.Conditions, metav1.Condition{
 		Type: garmv1alpha1.ConditionReady, Status: metav1.ConditionFalse,
@@ -173,6 +172,21 @@ func (r *GiteaOrganizationReconciler) markOrgFalse(ctx context.Context, obj *gar
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, cause
+}
+
+func (r *GiteaOrganizationReconciler) secretToOrgs(ctx context.Context, s client.Object) []reconcile.Request {
+	list := &garmv1alpha1.GiteaOrganizationList{}
+	if err := r.List(ctx, list, client.InNamespace(s.GetNamespace())); err != nil {
+		return nil
+	}
+	var out []reconcile.Request
+	for i := range list.Items {
+		o := &list.Items[i]
+		if o.Spec.WebhookSecretRef != nil && o.Spec.WebhookSecretRef.Name == s.GetName() {
+			out = append(out, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: o.Namespace, Name: o.Name}})
+		}
+	}
+	return out
 }
 
 func (r *GiteaOrganizationReconciler) credsToOrgs(ctx context.Context, c client.Object) []reconcile.Request {
@@ -210,6 +224,7 @@ func (r *GiteaOrganizationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&garmv1alpha1.GiteaOrganization{}).
 		Watches(&garmv1alpha1.GiteaCredentials{}, handler.EnqueueRequestsFromMapFunc(r.credsToOrgs)).
 		Watches(&garmv1alpha1.GiteaEndpoint{}, handler.EnqueueRequestsFromMapFunc(r.endpointToOrgs)).
+		Watches(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(r.secretToOrgs)).
 		Named("giteaorganization").
 		Complete(r)
 }

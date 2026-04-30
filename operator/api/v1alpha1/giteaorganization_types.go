@@ -22,9 +22,18 @@ type GiteaOrganizationSpec struct {
 	Name string `json:"name"`
 
 	// WebhookSecretRef holds the shared secret for incoming Gitea webhooks. Optional;
-	// GARM auto-manages the webhook when provided.
+	// when omitted, the operator generates a transient secret and GARM stores it encrypted.
 	// +optional
 	WebhookSecretRef *SecretKeyRef `json:"webhookSecretRef,omitempty"`
+
+	// InstallWebhook asks GARM to install/manage the forge webhook for this organization.
+	// When omitted, it defaults to true only when webhookSecretRef is omitted.
+	// +optional
+	InstallWebhook *bool `json:"installWebhook,omitempty"`
+
+	// WebhookInsecureSSL disables SSL verification for the installed forge webhook.
+	// +optional
+	WebhookInsecureSSL bool `json:"webhookInsecureSSL,omitempty"`
 
 	// +optional
 	// +kubebuilder:default=roundrobin

@@ -77,16 +77,16 @@ func (r *EnterpriseReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	if err != nil {
 		return r.markEnterpriseFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss, err)
 	}
-	webhookSecret, err := r.resolveEnterpriseWebhookSecret(ctx, obj)
-	if err != nil {
-		return r.markEnterpriseFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss, err)
-	}
 	balancer := string(obj.Spec.PoolBalancerType)
 	if balancer == "" {
 		balancer = string(garmv1alpha1.PoolBalancerRoundRobin)
 	}
 
 	if obj.Status.ID == "" {
+		webhookSecret, err := createWebhookSecret(ctx, r.Client, obj.Namespace, obj.Spec.WebhookSecretRef)
+		if err != nil {
+			return r.markEnterpriseFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss, err)
+		}
 		id, err := r.Garm.CreateEnterprise(ctx, garmclient.EnterpriseSpec{
 			Name: obj.Spec.Name, CredentialsName: credsName, WebhookSecret: webhookSecret, PoolBalancerType: balancer,
 		})
@@ -124,7 +124,10 @@ func (r *EnterpriseReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			upd.PoolBalancerType = &b
 		}
 		if obj.Spec.WebhookSecretRef != nil {
-			secret := webhookSecret
+			secret, err := readWebhookSecret(ctx, r.Client, obj.Namespace, *obj.Spec.WebhookSecretRef)
+			if err != nil {
+				return r.markEnterpriseFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss, err)
+			}
 			upd.WebhookSecret = &secret
 		}
 		if upd.CredentialsName != nil || upd.PoolBalancerType != nil || upd.WebhookSecret != nil {
@@ -175,25 +178,6 @@ func (r *EnterpriseReconciler) resolveEnterpriseRefs(ctx context.Context, obj *g
 	return creds.Name, nil
 }
 
-func (r *EnterpriseReconciler) resolveEnterpriseWebhookSecret(ctx context.Context, obj *garmv1alpha1.Enterprise) (string, error) {
-	if obj.Spec.WebhookSecretRef == nil {
-		return "", nil
-	}
-	ref := obj.Spec.WebhookSecretRef
-	sec := &corev1.Secret{}
-	if err := r.Get(ctx, types.NamespacedName{Namespace: obj.Namespace, Name: ref.Name}, sec); err != nil {
-		if apierrors.IsNotFound(err) {
-			return "", fmt.Errorf("webhook secret %s/%s not found", obj.Namespace, ref.Name)
-		}
-		return "", err
-	}
-	v, ok := sec.Data[ref.Key]
-	if !ok || len(v) == 0 {
-		return "", fmt.Errorf("webhook secret %s/%s missing key %q", obj.Namespace, ref.Name, ref.Key)
-	}
-	return string(v), nil
-}
-
 func (r *EnterpriseReconciler) markEnterpriseFalse(ctx context.Context, obj *garmv1alpha1.Enterprise, reason string, cause error) (ctrl.Result, error) {
 	meta.SetStatusCondition(&obj.Status.Conditions, metav1.Condition{
 		Type: garmv1alpha1.ConditionReady, Status: metav1.ConditionFalse,
@@ -203,6 +187,21 @@ func (r *EnterpriseReconciler) markEnterpriseFalse(ctx context.Context, obj *gar
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, cause
+}
+
+func (r *EnterpriseReconciler) secretToEnterprises(ctx context.Context, s client.Object) []reconcile.Request {
+	list := &garmv1alpha1.EnterpriseList{}
+	if err := r.List(ctx, list, client.InNamespace(s.GetNamespace())); err != nil {
+		return nil
+	}
+	var out []reconcile.Request
+	for i := range list.Items {
+		ent := &list.Items[i]
+		if ent.Spec.WebhookSecretRef != nil && ent.Spec.WebhookSecretRef.Name == s.GetName() {
+			out = append(out, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: ent.Namespace, Name: ent.Name}})
+		}
+	}
+	return out
 }
 
 func (r *EnterpriseReconciler) refToEnterprises(ctx context.Context, ref client.Object) []reconcile.Request {
@@ -226,6 +225,7 @@ func (r *EnterpriseReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&garmv1alpha1.Enterprise{}).
 		Watches(&garmv1alpha1.GithubEndpoint{}, handler.EnqueueRequestsFromMapFunc(r.refToEnterprises)).
 		Watches(&garmv1alpha1.GithubCredentials{}, handler.EnqueueRequestsFromMapFunc(r.refToEnterprises)).
+		Watches(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(r.secretToEnterprises)).
 		Named("enterprise").
 		Complete(r)
 }

@@ -103,3 +103,45 @@ func (c *Client) DeleteOrg(ctx context.Context, id string) error {
 		}, auth)
 	})
 }
+
+func (c *Client) GetOrgWebhookInfo(ctx context.Context, id string) (*garmparams.HookInfo, error) {
+	var out garmparams.HookInfo
+	err := c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
+		resp, err := c.api.Organizations.GetOrgWebhookInfo(&organizations.GetOrgWebhookInfoParams{
+			Context: ctx,
+			OrgID:   id,
+		}, auth)
+		if err != nil {
+			return err
+		}
+		out = resp.Payload
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) InstallOrgWebhook(ctx context.Context, id string, in WebhookInstall) (*garmparams.HookInfo, error) {
+	var out garmparams.HookInfo
+	err := c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
+		resp, err := c.api.Organizations.InstallOrgWebhook(&organizations.InstallOrgWebhookParams{
+			Context: ctx,
+			OrgID:   id,
+			Body: garmparams.InstallWebhookParams{
+				WebhookEndpointType: garmparams.WebhookEndpointDirect,
+				InsecureSSL:         in.InsecureSSL,
+			},
+		}, auth)
+		if err != nil {
+			return err
+		}
+		out = resp.Payload
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}

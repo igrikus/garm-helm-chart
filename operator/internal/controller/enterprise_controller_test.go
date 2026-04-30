@@ -70,6 +70,10 @@ var _ = Describe("Enterprise Controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(gc.Enterprises).To(HaveLen(1))
+		for _, ent := range gc.Enterprises {
+			Expect(ent.WebhookSecret).NotTo(BeEmpty())
+		}
+
 		obj := &garmv1alpha1.Enterprise{}
 		Expect(k8sClient.Get(ctx, entNSN, obj)).To(Succeed())
 		Expect(obj.Status.ID).NotTo(BeEmpty())

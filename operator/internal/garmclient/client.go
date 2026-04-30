@@ -57,12 +57,16 @@ type Interface interface {
 	GetOrg(ctx context.Context, id string) (*garmparams.Organization, error)
 	UpdateOrg(ctx context.Context, id string, in OrgUpdate) error
 	DeleteOrg(ctx context.Context, id string) error
+	GetOrgWebhookInfo(ctx context.Context, id string) (*garmparams.HookInfo, error)
+	InstallOrgWebhook(ctx context.Context, id string, in WebhookInstall) (*garmparams.HookInfo, error)
 
 	// Repositories and enterprises.
 	CreateRepo(ctx context.Context, in RepoSpec) (string, error)
 	GetRepo(ctx context.Context, id string) (*garmparams.Repository, error)
 	UpdateRepo(ctx context.Context, id string, in EntityUpdate) error
 	DeleteRepo(ctx context.Context, id string, keepWebhook bool) error
+	GetRepoWebhookInfo(ctx context.Context, id string) (*garmparams.HookInfo, error)
+	InstallRepoWebhook(ctx context.Context, id string, in WebhookInstall) (*garmparams.HookInfo, error)
 	CreateEnterprise(ctx context.Context, in EnterpriseSpec) (string, error)
 	GetEnterprise(ctx context.Context, id string) (*garmparams.Enterprise, error)
 	UpdateEnterprise(ctx context.Context, id string, in EntityUpdate) error

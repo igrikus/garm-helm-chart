@@ -109,10 +109,14 @@ var _ = Describe("GiteaOrganization Controller", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(gc.Orgs).To(HaveLen(1))
+			var orgID string
 			for _, o := range gc.Orgs {
+				orgID = o.ID
 				Expect(o.Name).To(Equal("myorg"))
 				Expect(o.CredentialsName).To(Equal(credName))
+				Expect(o.WebhookSecret).NotTo(BeEmpty())
 			}
+			Expect(gc.OrgHooks).To(HaveKey(orgID))
 
 			obj := &garmv1alpha1.GiteaOrganization{}
 			Expect(k8sClient.Get(ctx, nsn, obj)).To(Succeed())

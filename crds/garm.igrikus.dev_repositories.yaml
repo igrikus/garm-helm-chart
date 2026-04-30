@@ -83,6 +83,11 @@ spec:
                 - kind
                 - name
                 type: object
+              installWebhook:
+                description: |-
+                  InstallWebhook asks GARM to install/manage the forge webhook for this repository.
+                  When omitted, it defaults to true only when webhookSecretRef is omitted.
+                type: boolean
               name:
                 description: Name is the repository name on the forge.
                 type: string
@@ -97,9 +102,14 @@ spec:
                 - roundrobin
                 - pack
                 type: string
+              webhookInsecureSSL:
+                description: WebhookInsecureSSL disables SSL verification for the
+                  installed forge webhook.
+                type: boolean
               webhookSecretRef:
-                description: SecretKeyRef references a single key inside a Secret
-                  in the same namespace.
+                description: |-
+                  WebhookSecretRef holds the shared secret for incoming forge webhooks. Optional;
+                  when omitted, the operator generates a transient secret and GARM stores it encrypted.
                 properties:
                   key:
                     type: string

@@ -25,8 +25,19 @@ type RepositorySpec struct {
 	// Name is the repository name on the forge.
 	Name string `json:"name"`
 
+	// WebhookSecretRef holds the shared secret for incoming forge webhooks. Optional;
+	// when omitted, the operator generates a transient secret and GARM stores it encrypted.
 	// +optional
 	WebhookSecretRef *SecretKeyRef `json:"webhookSecretRef,omitempty"`
+
+	// InstallWebhook asks GARM to install/manage the forge webhook for this repository.
+	// When omitted, it defaults to true only when webhookSecretRef is omitted.
+	// +optional
+	InstallWebhook *bool `json:"installWebhook,omitempty"`
+
+	// WebhookInsecureSSL disables SSL verification for the installed forge webhook.
+	// +optional
+	WebhookInsecureSSL bool `json:"webhookInsecureSSL,omitempty"`
 
 	// +optional
 	// +kubebuilder:default=roundrobin
