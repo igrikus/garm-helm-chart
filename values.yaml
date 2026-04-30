@@ -148,6 +148,9 @@ operator:
     tag: ""
   replicas: 1
   leaderElection: true
+  ## -- Override the GARM API URL used by the operator.
+  ## -- If unset, the chart uses the internal Service URL with the scheme selected from garm.tls.enabled.
+  # garmBaseUrl: "https://garm.example.com"
   serviceAccount:
     create: true
     automount: true

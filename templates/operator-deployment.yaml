@@ -40,7 +40,7 @@ spec:
             - --health-probe-bind-address=:8081
           env:
             - name: GARM_BASE_URL
-              value: "http://{{ include "garm.fullname" . }}:{{ .Values.service.port }}"
+              value: {{ .Values.operator.garmBaseUrl | default (printf "%s://%s:%v" (ternary "https" "http" .Values.garm.tls.enabled) (include "garm.fullname" .) .Values.service.port) | quote }}
             - name: GARM_USERNAME
               valueFrom:
                 secretKeyRef:
