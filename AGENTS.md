@@ -5,7 +5,7 @@ A Helm chart that deploys [GARM](https://github.com/cloudbase/garm) (GitHub/Gite
 ## Two-component architecture
 
 - **Helm chart** (root): templates, values, CRDs. Published as an OCI chart to `ghcr.io/igrikus/garm`.
-- **Operator** (`operator/`): a kubebuilder-based Go controller manager. Built as a Docker image (`ghcr.io/igrikus/garm-operator`). Has its own `go.mod`, `Makefile`, tests, and CI.
+- **Operator** (`operator/`): a kubebuilder-based Go operator. Built as a Docker image (`ghcr.io/igrikus/garm-operator`). Has its own `go.mod`, `Makefile`, tests, and CI.
 
 CRD YAMLs in `crds/` are generated from the operator's Go API types. The chart installs them; the operator reconciles them.
 

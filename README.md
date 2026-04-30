@@ -1,6 +1,6 @@
 # GARM Helm Chart
 
-This chart installs [GARM](https://github.com/cloudbase/garm) and a Kubernetes controller that reconciles GARM configuration from CRDs.
+This chart installs [GARM](https://github.com/cloudbase/garm) and an operator that reconciles GARM configuration from CRDs.
 
 > [!NOTE]
 > This is an unofficial Helm chart and is not affiliated with the GARM project. Please do not open issues regarding this chart in the official GARM repository.
@@ -10,9 +10,9 @@ This chart installs [GARM](https://github.com/cloudbase/garm) and a Kubernetes c
 The release contains two long-running workloads:
 
 - `garm`: the GARM API server, UI, database storage, and provider configuration.
-- `garm-operator`: a controller manager that watches `garm.igrikus.dev/v1alpha1` resources and calls the GARM API.
+- `garm-operator`: watches `garm.igrikus.dev/v1alpha1` resources and calls the GARM API.
 
-The chart can render CRs for endpoints, credentials, organizations, repositories, enterprises, runner templates, and pools. The controller owns lifecycle reconciliation after install and upgrade.
+The chart can render CRs for endpoints, credentials, organizations, repositories, enterprises, runner templates, and pools. The operator owns lifecycle reconciliation after install and upgrade.
 
 ## Installation
 

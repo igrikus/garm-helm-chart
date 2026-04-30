@@ -2,10 +2,10 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "garm.controllerName" . }}
+  name: {{ include "garm.operatorName" . }}
   labels:
     {{- include "garm.labels" . | nindent 4 }}
-    app.kubernetes.io/component: controller
+    app.kubernetes.io/component: operator
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
@@ -53,26 +53,26 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "garm.controllerName" . }}
+  name: {{ include "garm.operatorName" . }}
   labels:
     {{- include "garm.labels" . | nindent 4 }}
-    app.kubernetes.io/component: controller
+    app.kubernetes.io/component: operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "garm.controllerName" . }}
+  name: {{ include "garm.operatorName" . }}
 subjects:
   - kind: ServiceAccount
-    name: {{ include "garm.controllerServiceAccountName" . }}
+    name: {{ include "garm.operatorServiceAccountName" . }}
     namespace: {{ .Release.Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ include "garm.controllerName" . }}-leader-election
+  name: {{ include "garm.operatorName" . }}-leader-election
   labels:
     {{- include "garm.labels" . | nindent 4 }}
-    app.kubernetes.io/component: controller
+    app.kubernetes.io/component: operator
 rules:
   - apiGroups: [""]
     resources: ["configmaps"]
@@ -87,16 +87,16 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ include "garm.controllerName" . }}-leader-election
+  name: {{ include "garm.operatorName" . }}-leader-election
   labels:
     {{- include "garm.labels" . | nindent 4 }}
-    app.kubernetes.io/component: controller
+    app.kubernetes.io/component: operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: {{ include "garm.controllerName" . }}-leader-election
+  name: {{ include "garm.operatorName" . }}-leader-election
 subjects:
   - kind: ServiceAccount
-    name: {{ include "garm.controllerServiceAccountName" . }}
+    name: {{ include "garm.operatorServiceAccountName" . }}
     namespace: {{ .Release.Namespace }}
 {{- end }}

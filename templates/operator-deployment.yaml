@@ -2,16 +2,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "garm.controllerName" . }}
+  name: {{ include "garm.operatorName" . }}
   labels:
     {{- include "garm.labels" . | nindent 4 }}
-    app.kubernetes.io/component: controller
+    app.kubernetes.io/component: operator
 spec:
   replicas: {{ .Values.operator.replicas }}
   selector:
     matchLabels:
       {{- include "garm.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: controller
+      app.kubernetes.io/component: operator
   template:
     metadata:
       annotations:
@@ -21,12 +21,12 @@ spec:
         {{- end }}
       labels:
         {{- include "garm.labels" . | nindent 8 }}
-        app.kubernetes.io/component: controller
+        app.kubernetes.io/component: operator
         {{- with .Values.operator.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      serviceAccountName: {{ include "garm.controllerServiceAccountName" . }}
+      serviceAccountName: {{ include "garm.operatorServiceAccountName" . }}
       securityContext:
         {{- toYaml .Values.operator.securityContext | nindent 8 }}
       containers:
