@@ -271,6 +271,7 @@ forges:
     pools: []
       #   ## -- Item names become Kubernetes resource names and must be lowercase RFC 1123 subdomains.
       # - name: "my-pool"
+      #   ## -- Kubernetes GiteaOrganization resource name, not the literal forge organization name.
       #   organizationName: "my-org"
       #   repositoryName: ""
       #   endpointName: "my-gitea"
