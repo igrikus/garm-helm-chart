@@ -98,16 +98,11 @@ spec:
               githubRunnerGroup:
                 description: GithubRunnerGroup is GitHub-only; ignored for Gitea pools.
                 type: string
-              imageRef:
+              image:
                 description: |-
-                  ImageRef points at an Image CR in the same namespace. Indirection makes
-                  "bump every pool to a new image" a single edit.
-                properties:
-                  name:
-                    type: string
-                required:
-                - name
-                type: object
+                  Image is the provider-specific image identifier passed to GARM (AMI id,
+                  LXD alias, GCP image URL, ...).
+                type: string
               maxRunners:
                 default: 5
                 format: int32
@@ -176,7 +171,7 @@ spec:
             required:
             - flavor
             - forgeRef
-            - imageRef
+            - image
             - providerName
             - scopeRef
             type: object

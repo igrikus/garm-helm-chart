@@ -78,15 +78,6 @@ resources:
   controller: true
   domain: igrikus.dev
   group: garm
-  kind: Image
-  path: github.com/igrikus/garm-helm-chart/operator/api/v1alpha1
-  version: v1alpha1
-- api:
-    crdVersion: v1
-    namespaced: true
-  controller: true
-  domain: igrikus.dev
-  group: garm
   kind: Pool
   path: github.com/igrikus/garm-helm-chart/operator/api/v1alpha1
   version: v1alpha1

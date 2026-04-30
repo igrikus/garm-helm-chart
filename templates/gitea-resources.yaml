@@ -105,19 +105,6 @@ spec:
 {{- end }}
 {{- range $pool := .Values.forges.gitea.pools }}
 {{- $name := required "forges.gitea.pools[].name is required" $pool.name }}
-{{- $imageName := default (printf "%s-image" $name) $pool.imageName }}
----
-apiVersion: garm.igrikus.dev/v1alpha1
-kind: Image
-metadata:
-  name: {{ $imageName }}
-  labels:
-    {{- include "garm.labels" $ | nindent 4 }}
-spec:
-  tag: {{ required (printf "forges.gitea.pools[%s].image is required" $name) $pool.image | quote }}
-  {{- with $pool.imageDescription }}
-  description: {{ . | quote }}
-  {{- end }}
 ---
 apiVersion: garm.igrikus.dev/v1alpha1
 kind: Pool
@@ -138,8 +125,7 @@ spec:
     name: {{ required (printf "forges.gitea.pools[%s].organizationName is required" $name) $pool.organizationName | quote }}
     {{- end }}
   providerName: {{ required (printf "forges.gitea.pools[%s].providerName is required" $name) $pool.providerName | quote }}
-  imageRef:
-    name: {{ $imageName | quote }}
+  image: {{ required (printf "forges.gitea.pools[%s].image is required" $name) $pool.image | quote }}
   flavor: {{ required (printf "forges.gitea.pools[%s].flavor is required" $name) $pool.flavor | quote }}
   osType: {{ default "linux" $pool.osType | quote }}
   osArch: {{ default "amd64" $pool.osArch | quote }}
@@ -280,19 +266,6 @@ spec:
 {{- end }}
 {{- range $pool := .Values.forges.github.pools }}
 {{- $name := required "forges.github.pools[].name is required" $pool.name }}
-{{- $imageName := default (printf "%s-image" $name) $pool.imageName }}
----
-apiVersion: garm.igrikus.dev/v1alpha1
-kind: Image
-metadata:
-  name: {{ $imageName }}
-  labels:
-    {{- include "garm.labels" $ | nindent 4 }}
-spec:
-  tag: {{ required (printf "forges.github.pools[%s].image is required" $name) $pool.image | quote }}
-  {{- with $pool.imageDescription }}
-  description: {{ . | quote }}
-  {{- end }}
 ---
 apiVersion: garm.igrikus.dev/v1alpha1
 kind: Pool
@@ -313,8 +286,7 @@ spec:
     name: {{ required (printf "forges.github.pools[%s].repositoryName or enterpriseName is required" $name) $pool.repositoryName | quote }}
     {{- end }}
   providerName: {{ required (printf "forges.github.pools[%s].providerName is required" $name) $pool.providerName | quote }}
-  imageRef:
-    name: {{ $imageName | quote }}
+  image: {{ required (printf "forges.github.pools[%s].image is required" $name) $pool.image | quote }}
   flavor: {{ required (printf "forges.github.pools[%s].flavor is required" $name) $pool.flavor | quote }}
   osType: {{ default "linux" $pool.osType | quote }}
   osArch: {{ default "amd64" $pool.osArch | quote }}

@@ -21,7 +21,6 @@ rules:
   - giteaorganizations
   - githubcredentials
   - githubendpoints
-  - images
   - pools
   - repositories
   - runners
@@ -43,7 +42,6 @@ rules:
   - giteaorganizations/finalizers
   - githubcredentials/finalizers
   - githubendpoints/finalizers
-  - images/finalizers
   - pools/finalizers
   - repositories/finalizers
   - runners/finalizers
@@ -59,7 +57,6 @@ rules:
   - giteaorganizations/status
   - githubcredentials/status
   - githubendpoints/status
-  - images/status
   - pools/status
   - repositories/status
   - runners/status

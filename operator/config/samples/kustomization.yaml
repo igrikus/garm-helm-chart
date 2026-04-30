@@ -7,7 +7,6 @@ resources:
 - garm_v1alpha1_giteaorganization.yaml
 - garm_v1alpha1_repository.yaml
 - garm_v1alpha1_enterprise.yaml
-- garm_v1alpha1_image.yaml
 - garm_v1alpha1_runnertemplate.yaml
 - garm_v1alpha1_pool.yaml
 - garm_v1alpha1_runner.yaml

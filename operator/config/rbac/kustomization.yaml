@@ -28,9 +28,6 @@ resources:
 - pool_admin_role.yaml
 - pool_editor_role.yaml
 - pool_viewer_role.yaml
-- image_admin_role.yaml
-- image_editor_role.yaml
-- image_viewer_role.yaml
 - enterprise_admin_role.yaml
 - enterprise_editor_role.yaml
 - enterprise_viewer_role.yaml
@@ -52,4 +49,3 @@ resources:
 - giteaendpoint_admin_role.yaml
 - giteaendpoint_editor_role.yaml
 - giteaendpoint_viewer_role.yaml
-

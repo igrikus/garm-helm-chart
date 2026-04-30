@@ -267,7 +267,7 @@ forges:
       #     name: "gitea-webhook"
       #     key: "secret"
 
-    ## -- Org- or repository-scoped Gitea Image and Pool CRs. pools[].name is required and becomes spec.runnerPrefix.
+    ## -- Org- or repository-scoped Gitea Pool CRs. pools[].name is required and becomes spec.runnerPrefix.
     pools: []
       #   ## -- Item names become Kubernetes resource names and must be lowercase RFC 1123 subdomains.
       # - name: "my-pool"
@@ -276,9 +276,6 @@ forges:
       #   endpointName: "my-gitea"
       #   providerName: "gcp"
       #   image: "ubuntu-24.04"
-      #   ## -- imageName becomes a Kubernetes Image resource name and must be a lowercase RFC 1123 subdomain.
-      #   imageName: "my-pool-image"
-      #   imageDescription: "Ubuntu runner image"
       #   flavor: "medium"
       #   osType: "linux"
       #   osArch: "amd64"
@@ -358,8 +355,6 @@ forges:
       #   endpointName: "github"
       #   providerName: "gcp"
       #   image: "ubuntu-24.04"
-      #   ## -- imageName becomes a Kubernetes Image resource name and must be a lowercase RFC 1123 subdomain.
-      #   imageName: "github-repo-pool-image"
       #   flavor: "medium"
       #   runnerInstallTemplateName: "linux-github"
 

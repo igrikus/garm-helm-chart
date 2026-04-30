@@ -12,7 +12,7 @@ The release contains two long-running workloads:
 - `garm`: the GARM API server, UI, database storage, and provider configuration.
 - `garm-operator`: a controller manager that watches `garm.igrikus.dev/v1alpha1` resources and calls the GARM API.
 
-The chart can render CRs for endpoints, credentials, organizations, repositories, enterprises, images, runner templates, and pools. The controller owns lifecycle reconciliation after install and upgrade.
+The chart can render CRs for endpoints, credentials, organizations, repositories, enterprises, runner templates, and pools. The controller owns lifecycle reconciliation after install and upgrade.
 
 ## Installation
 

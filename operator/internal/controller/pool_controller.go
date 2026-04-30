@@ -54,7 +54,6 @@ type PoolReconciler struct {
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=pools,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=pools/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=pools/finalizers,verbs=update
-// +kubebuilder:rbac:groups=garm.igrikus.dev,resources=images,verbs=get;list;watch
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=runnertemplates,verbs=get;list;watch
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=giteaorganizations,verbs=get;list;watch
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=repositories;enterprises,verbs=get;list;watch
@@ -83,21 +82,12 @@ func (r *PoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return r.markPoolFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss, err)
 	}
 
-	img := &garmv1alpha1.Image{}
-	if err := r.Get(ctx, types.NamespacedName{Namespace: obj.Namespace, Name: obj.Spec.ImageRef.Name}, img); err != nil {
-		if apierrors.IsNotFound(err) {
-			return r.markPoolFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss,
-				fmt.Errorf("image %s/%s not found", obj.Namespace, obj.Spec.ImageRef.Name))
-		}
-		return ctrl.Result{}, err
-	}
-
 	templateID, err := r.resolveRunnerTemplate(ctx, obj)
 	if err != nil {
 		return r.markPoolFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss, err)
 	}
 
-	desired := buildPoolCreate(&obj.Spec, img.Spec.Tag, templateID)
+	desired := buildPoolCreate(&obj.Spec, obj.Spec.Image, templateID)
 
 	if obj.Status.ID == "" {
 		id, err := r.adoptOrCreatePool(ctx, obj.Spec.ScopeRef.Kind, scopeID, desired)
@@ -577,21 +567,6 @@ func poolDiff(actual *garmparams.Pool, desired garmclient.PoolCreate) garmclient
 	return out
 }
 
-func (r *PoolReconciler) imageToPools(ctx context.Context, img client.Object) []reconcile.Request {
-	list := &garmv1alpha1.PoolList{}
-	if err := r.List(ctx, list, client.InNamespace(img.GetNamespace())); err != nil {
-		return nil
-	}
-	var out []reconcile.Request
-	for i := range list.Items {
-		p := &list.Items[i]
-		if p.Spec.ImageRef.Name == img.GetName() {
-			out = append(out, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: p.Namespace, Name: p.Name}})
-		}
-	}
-	return out
-}
-
 func (r *PoolReconciler) templateToPools(ctx context.Context, tpl client.Object) []reconcile.Request {
 	list := &garmv1alpha1.PoolList{}
 	if err := r.List(ctx, list, client.InNamespace(tpl.GetNamespace())); err != nil {
@@ -627,7 +602,6 @@ func (r *PoolReconciler) scopeToPools(ctx context.Context, org client.Object) []
 func (r *PoolReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&garmv1alpha1.Pool{}).
-		Watches(&garmv1alpha1.Image{}, handler.EnqueueRequestsFromMapFunc(r.imageToPools)).
 		Watches(&garmv1alpha1.RunnerTemplate{}, handler.EnqueueRequestsFromMapFunc(r.templateToPools)).
 		Watches(&garmv1alpha1.GiteaOrganization{}, handler.EnqueueRequestsFromMapFunc(r.scopeToPools)).
 		Watches(&garmv1alpha1.Repository{}, handler.EnqueueRequestsFromMapFunc(r.scopeToPools)).

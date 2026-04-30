@@ -26,9 +26,9 @@ type PoolSpec struct {
 	// ProviderName is the GARM provider this pool dispatches to (lxd, gcp, ...).
 	ProviderName string `json:"providerName"`
 
-	// ImageRef points at an Image CR in the same namespace. Indirection makes
-	// "bump every pool to a new image" a single edit.
-	ImageRef LocalObjectRef `json:"imageRef"`
+	// Image is the provider-specific image identifier passed to GARM (AMI id,
+	// LXD alias, GCP image URL, ...).
+	Image string `json:"image"`
 
 	Flavor string `json:"flavor"`
 

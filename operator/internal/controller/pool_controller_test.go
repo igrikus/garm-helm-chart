@@ -31,7 +31,6 @@ var _ = Describe("Pool Controller", func() {
 	const (
 		poolName  = "pool-cr"
 		orgName   = "pool-org"
-		imageName = "pool-image"
 		namespace = "default"
 	)
 
@@ -50,10 +49,6 @@ var _ = Describe("Pool Controller", func() {
 			org.Finalizers = nil
 			_ = k8sClient.Update(ctx, org)
 			_ = k8sClient.Delete(ctx, org)
-		}
-		img := &garmv1alpha1.Image{}
-		if err := k8sClient.Get(ctx, types.NamespacedName{Name: imageName, Namespace: namespace}, img); err == nil {
-			_ = k8sClient.Delete(ctx, img)
 		}
 		tpl := &garmv1alpha1.RunnerTemplate{}
 		if err := k8sClient.Get(ctx, types.NamespacedName{Name: "linux-template", Namespace: namespace}, tpl); err == nil {
@@ -75,13 +70,6 @@ var _ = Describe("Pool Controller", func() {
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: orgName, Namespace: namespace}, org)).To(Succeed())
 		org.Status.ID = "org-1"
 		Expect(k8sClient.Status().Update(ctx, org)).To(Succeed())
-	}
-
-	createImage := func() {
-		Expect(k8sClient.Create(ctx, &garmv1alpha1.Image{
-			ObjectMeta: metav1.ObjectMeta{Name: imageName, Namespace: namespace},
-			Spec:       garmv1alpha1.ImageSpec{Tag: "ubuntu-24.04"},
-		})).To(Succeed())
 	}
 
 	createReadyTemplate := func(id string) {
@@ -108,7 +96,7 @@ var _ = Describe("Pool Controller", func() {
 		return garmv1alpha1.PoolSpec{
 			ForgeRef: garmv1alpha1.ForgeRef{Kind: "GiteaEndpoint", Name: "gitea"},
 			ScopeRef: garmv1alpha1.ScopeRef{Kind: "GiteaOrganization", Name: orgName},
-			ImageRef: garmv1alpha1.LocalObjectRef{Name: imageName},
+			Image:    "ubuntu-24.04",
 
 			ProviderName:                  "lxd",
 			Flavor:                        "medium",
@@ -134,7 +122,6 @@ var _ = Describe("Pool Controller", func() {
 	It("creates an organization pool and marks it ready", func() {
 		gc := fake.New()
 		createReadyOrg(gc)
-		createImage()
 		createPool(basePoolSpec())
 
 		r := newReconciler(gc)
@@ -165,7 +152,6 @@ var _ = Describe("Pool Controller", func() {
 	It("adopts a single existing organization pool by runner prefix", func() {
 		gc := fake.New()
 		createReadyOrg(gc)
-		createImage()
 		createPool(basePoolSpec())
 
 		gc.Pools["existing-pool"] = garmparams.Pool{
@@ -200,7 +186,6 @@ var _ = Describe("Pool Controller", func() {
 	It("patches only changed pool fields during drift correction", func() {
 		gc := fake.New()
 		createReadyOrg(gc)
-		createImage()
 
 		spec := basePoolSpec()
 		createPool(spec)
@@ -244,7 +229,6 @@ var _ = Describe("Pool Controller", func() {
 	It("disables and drains runners before deleting the GARM pool", func() {
 		gc := fake.New()
 		createReadyOrg(gc)
-		createImage()
 		createPool(basePoolSpec())
 
 		r := newReconciler(gc)
@@ -287,37 +271,9 @@ var _ = Describe("Pool Controller", func() {
 		}).Should(BeTrue())
 	})
 
-	It("marks Ready=False when the referenced image is missing", func() {
-		gc := fake.New()
-		createReadyOrg(gc)
-
-		spec := basePoolSpec()
-		spec.ImageRef.Name = "missing-image"
-		createPool(spec)
-
-		r := newReconciler(gc)
-		_, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: poolNSN})
-		Expect(err).NotTo(HaveOccurred())
-		_, err = r.Reconcile(ctx, reconcile.Request{NamespacedName: poolNSN})
-		Expect(err).To(MatchError(ContainSubstring("image default/missing-image not found")))
-
-		Expect(gc.Pools).To(BeEmpty())
-
-		obj := &garmv1alpha1.Pool{}
-		Expect(k8sClient.Get(ctx, poolNSN, obj)).To(Succeed())
-		Expect(obj.Status.Conditions).To(ContainElement(
-			And(
-				HaveField("Type", garmv1alpha1.ConditionReady),
-				HaveField("Status", metav1.ConditionFalse),
-				HaveField("Reason", garmv1alpha1.ReasonReferenceMiss),
-			),
-		))
-	})
-
 	It("marks Ready=False when the referenced runner template is missing", func() {
 		gc := fake.New()
 		createReadyOrg(gc)
-		createImage()
 		spec := basePoolSpec()
 		spec.RunnerInstallTemplateRef = &garmv1alpha1.LocalObjectRef{Name: "missing-template"}
 		createPool(spec)
@@ -333,7 +289,6 @@ var _ = Describe("Pool Controller", func() {
 	It("passes the runner template ID during pool create", func() {
 		gc := fake.New()
 		createReadyOrg(gc)
-		createImage()
 		createReadyTemplate("42")
 		spec := basePoolSpec()
 		spec.RunnerInstallTemplateRef = &garmv1alpha1.LocalObjectRef{Name: "linux-template"}
@@ -354,7 +309,6 @@ var _ = Describe("Pool Controller", func() {
 	It("updates pool template drift", func() {
 		gc := fake.New()
 		createReadyOrg(gc)
-		createImage()
 		createReadyTemplate("42")
 		spec := basePoolSpec()
 		spec.RunnerInstallTemplateRef = &garmv1alpha1.LocalObjectRef{Name: "linux-template"}
