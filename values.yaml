@@ -136,7 +136,7 @@ resources:
       cpu: 500m
       memory: 128Mi
     requests:
-      cpu: 10m
+      cpu: 128m
       memory: 64Mi
 
 ## -- GARM operator manager configuration.
