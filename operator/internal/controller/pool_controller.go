@@ -560,7 +560,7 @@ func poolDiff(actual *garmparams.Pool, desired garmclient.PoolCreate) garmclient
 		v := desired.Priority
 		out.Priority = &v
 	}
-	if actual.TemplateID != desired.TemplateID {
+	if desired.TemplateID != 0 && actual.TemplateID != desired.TemplateID {
 		v := desired.TemplateID
 		out.TemplateID = &v
 	}

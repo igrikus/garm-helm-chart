@@ -226,6 +226,47 @@ var _ = Describe("Pool Controller", func() {
 		Expect(p.RunnerPrefix.Prefix).To(Equal("ci"))
 	})
 
+	It("does not clear an auto-selected GARM template when no template ref is set", func() {
+		gc := fake.New()
+		createReadyOrg(gc)
+
+		spec := basePoolSpec()
+		createPool(spec)
+
+		obj := &garmv1alpha1.Pool{}
+		Expect(k8sClient.Get(ctx, poolNSN, obj)).To(Succeed())
+		controllerutil.AddFinalizer(obj, garmv1alpha1.Finalizer)
+		Expect(k8sClient.Update(ctx, obj)).To(Succeed())
+		Expect(k8sClient.Get(ctx, poolNSN, obj)).To(Succeed())
+		obj.Status.ID = "pool-auto-template"
+		Expect(k8sClient.Status().Update(ctx, obj)).To(Succeed())
+
+		gc.Pools["pool-auto-template"] = garmparams.Pool{
+			ID:                     "pool-auto-template",
+			ProviderName:           "lxd",
+			MaxRunners:             20,
+			MinIdleRunners:         1,
+			Image:                  "ubuntu-24.04",
+			Flavor:                 "medium",
+			OSType:                 commonparams.OSType("linux"),
+			OSArch:                 commonparams.OSArch("amd64"),
+			Tags:                   []garmparams.Tag{{Name: "linux"}, {Name: "self-hosted"}},
+			Enabled:                true,
+			RunnerBootstrapTimeout: 20,
+			RunnerPrefix:           garmparams.RunnerPrefix{Prefix: "ci"},
+			Priority:               10,
+			OrgID:                  "org-1",
+			TemplateID:             7,
+		}
+
+		_, err := newReconciler(gc).Reconcile(ctx, reconcile.Request{NamespacedName: poolNSN})
+		Expect(err).NotTo(HaveOccurred())
+
+		p := gc.Pools["pool-auto-template"]
+		Expect(p.MaxRunners).To(Equal(uint(5)))
+		Expect(p.TemplateID).To(Equal(uint(7)))
+	})
+
 	It("disables and drains runners before deleting the GARM pool", func() {
 		gc := fake.New()
 		createReadyOrg(gc)
