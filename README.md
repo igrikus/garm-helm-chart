@@ -18,12 +18,31 @@ The chart can render CRs for endpoints, credentials, organizations, repositories
 
 1. Create a copy of `values.yaml` (e.g., `my-values.yaml`) and customize it for your environment.
 
-Install the published OCI chart:
+2. Install the published OCI chart:
 
 ```bash
 helm install my-garm oci://ghcr.io/igrikus/garm \
   --namespace garm \
   --create-namespace \
+  -f my-values.yaml
+```
+
+## Upgrading
+
+Helm does not update CRDs on upgrade ([by design](https://helm.sh/docs/chart_best_practices/custom_resource_definitions/#some-caveats-and-explanations)). When upgrading to a version with CRD changes, apply the CRDs manually before running `helm upgrade`:
+
+```bash
+export GARM_CHART_VERSION=<version>
+helm pull oci://ghcr.io/igrikus/garm --version "${GARM_CHART_VERSION}" --untar
+kubectl apply -f garm/crds/
+```
+
+Then upgrade the release:
+
+```bash
+helm upgrade my-garm oci://ghcr.io/igrikus/garm \
+  --version <version> \
+  --namespace garm \
   -f my-values.yaml
 ```
 
