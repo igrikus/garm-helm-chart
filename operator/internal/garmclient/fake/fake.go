@@ -73,7 +73,8 @@ func (c *Client) CreateGiteaEndpoint(_ context.Context, in garmclient.GiteaEndpo
 	}
 	c.Endpoints[in.Name] = garmparams.ForgeEndpoint{
 		Name: in.Name, Description: in.Description, APIBaseURL: in.APIBaseURL, BaseURL: in.BaseURL,
-		CACertBundle: in.CACertBundle,
+		CACertBundle: in.CACertBundle, ToolsMetadataURL: in.ToolsMetadataURL,
+		UseInternalToolsMetadata: &in.UseInternalToolsMetadata,
 	}
 	return in.Name, nil
 }
@@ -95,6 +96,8 @@ func (c *Client) UpdateGiteaEndpoint(_ context.Context, name string, in garmclie
 	e.APIBaseURL = in.APIBaseURL
 	e.BaseURL = in.BaseURL
 	e.CACertBundle = in.CACertBundle
+	e.ToolsMetadataURL = in.ToolsMetadataURL
+	e.UseInternalToolsMetadata = &in.UseInternalToolsMetadata
 	c.Endpoints[name] = e
 	return nil
 }

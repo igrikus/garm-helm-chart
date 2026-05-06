@@ -76,6 +76,16 @@ spec:
                 type: object
               description:
                 type: string
+              toolsMetadataURL:
+                description: |-
+                  ToolsMetadataURL is the URL used to discover Gitea act_runner releases.
+                  If empty, GARM uses its default public Gitea runner releases URL.
+                pattern: ^https?://.+
+                type: string
+              useInternalToolsMetadata:
+                description: UseInternalToolsMetadata tells GARM to use its internally
+                  cached tools metadata.
+                type: boolean
             required:
             - baseURL
             type: object

@@ -218,6 +218,10 @@ forges:
       #   baseURL: "https://gitea.example.com"
       #   apiBaseURL: "https://gitea.example.com/api/v1"
       #   description: "Primary Gitea"
+      #   ## -- If not specified, GARM uses the default URL for Gitea Runner releases
+      #   toolsMetadataURL: "https://gitea.com/api/v1/repos/gitea/act_runner/releases"
+      #   ## -- If not specified, default value (false) is used. Use YAML boolean, NOT string
+      #   useInternalToolsMetadata: false
       #   caCertBundleSecretRef:
       #     name: "gitea-ca"
       #     key: "ca.crt"

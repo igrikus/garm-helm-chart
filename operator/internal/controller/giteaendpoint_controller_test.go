@@ -42,7 +42,9 @@ var _ = Describe("GiteaEndpoint Controller", func() {
 			Expect(k8sClient.Create(ctx, &garmv1alpha1.GiteaEndpoint{
 				ObjectMeta: metav1.ObjectMeta{Name: resourceName, Namespace: "default"},
 				Spec: garmv1alpha1.GiteaEndpointSpec{
-					BaseURL: "https://gitea.example.com",
+					BaseURL:                  "https://gitea.example.com",
+					ToolsMetadataURL:         "https://gitea.example.com/api/v1/repos/gitea/act_runner/releases",
+					UseInternalToolsMetadata: true,
 				},
 			})).To(Succeed())
 
@@ -57,6 +59,9 @@ var _ = Describe("GiteaEndpoint Controller", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(gc.Endpoints).To(HaveKey(resourceName))
+			Expect(gc.Endpoints[resourceName].ToolsMetadataURL).To(Equal("https://gitea.example.com/api/v1/repos/gitea/act_runner/releases"))
+			Expect(gc.Endpoints[resourceName].UseInternalToolsMetadata).NotTo(BeNil())
+			Expect(*gc.Endpoints[resourceName].UseInternalToolsMetadata).To(BeTrue())
 
 			obj := &garmv1alpha1.GiteaEndpoint{}
 			Expect(k8sClient.Get(ctx, nsn, obj)).To(Succeed())

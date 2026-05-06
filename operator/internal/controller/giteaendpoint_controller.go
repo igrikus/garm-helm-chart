@@ -28,6 +28,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	garmparams "github.com/cloudbase/garm/params"
+	"github.com/cloudbase/garm/util/appdefaults"
 
 	garmv1alpha1 "github.com/igrikus/garm-helm-chart/operator/api/v1alpha1"
 	"github.com/igrikus/garm-helm-chart/operator/internal/garmclient"
@@ -88,14 +89,19 @@ func (r *GiteaEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	desired := garmclient.GiteaEndpointSpec{
-		Name:         obj.Name,
-		Description:  obj.Spec.Description,
-		APIBaseURL:   obj.Spec.APIBaseURL,
-		BaseURL:      obj.Spec.BaseURL,
-		CACertBundle: caBundle,
+		Name:                     obj.Name,
+		Description:              obj.Spec.Description,
+		APIBaseURL:               obj.Spec.APIBaseURL,
+		BaseURL:                  obj.Spec.BaseURL,
+		CACertBundle:             caBundle,
+		ToolsMetadataURL:         obj.Spec.ToolsMetadataURL,
+		UseInternalToolsMetadata: obj.Spec.UseInternalToolsMetadata,
 	}
 	if desired.APIBaseURL == "" {
 		desired.APIBaseURL = desired.BaseURL
+	}
+	if desired.ToolsMetadataURL == "" {
+		desired.ToolsMetadataURL = appdefaults.GiteaRunnerReleasesURL
 	}
 
 	if obj.Status.ID == "" {
@@ -163,9 +169,15 @@ func (r *GiteaEndpointReconciler) markSyncedFalse(ctx context.Context, obj *garm
 }
 
 func endpointDrifted(actual *garmparams.ForgeEndpoint, desired garmclient.GiteaEndpointSpec) bool {
+	useInternalToolsMetadata := false
+	if actual.UseInternalToolsMetadata != nil {
+		useInternalToolsMetadata = *actual.UseInternalToolsMetadata
+	}
 	return actual.APIBaseURL != desired.APIBaseURL ||
 		actual.BaseURL != desired.BaseURL ||
 		actual.Description != desired.Description ||
+		actual.ToolsMetadataURL != desired.ToolsMetadataURL ||
+		useInternalToolsMetadata != desired.UseInternalToolsMetadata ||
 		!bytes.Equal(actual.CACertBundle, desired.CACertBundle)
 }
 

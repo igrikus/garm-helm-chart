@@ -15,6 +15,12 @@ spec:
   {{- with $endpoint.description }}
   description: {{ . | quote }}
   {{- end }}
+  {{- with $endpoint.toolsMetadataURL }}
+  toolsMetadataURL: {{ . | quote }}
+  {{- end }}
+  {{- if hasKey $endpoint "useInternalToolsMetadata" }}
+  useInternalToolsMetadata: {{ $endpoint.useInternalToolsMetadata }}
+  {{- end }}
   {{- with $endpoint.caCertBundleSecretRef }}
   caCertBundleSecretRef:
     name: {{ required (printf "forges.gitea.endpoints[%s].caCertBundleSecretRef.name is required" $name) .name | quote }}

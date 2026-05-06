@@ -21,11 +21,13 @@ import (
 // GiteaEndpointSpec is the wrapper-internal request shape, decoupled from
 // generated parameter structs so reconcilers don't import go-swagger types.
 type GiteaEndpointSpec struct {
-	Name         string
-	Description  string
-	APIBaseURL   string
-	BaseURL      string
-	CACertBundle []byte
+	Name                     string
+	Description              string
+	APIBaseURL               string
+	BaseURL                  string
+	CACertBundle             []byte
+	ToolsMetadataURL         string
+	UseInternalToolsMetadata bool
 }
 
 type GithubEndpointSpec struct {
@@ -43,11 +45,13 @@ func (c *Client) CreateGiteaEndpoint(ctx context.Context, in GiteaEndpointSpec) 
 		resp, err := c.api.Endpoints.CreateGiteaEndpoint(&endpoints.CreateGiteaEndpointParams{
 			Context: ctx,
 			Body: garmparams.CreateGiteaEndpointParams{
-				Name:         in.Name,
-				Description:  in.Description,
-				APIBaseURL:   in.APIBaseURL,
-				BaseURL:      in.BaseURL,
-				CACertBundle: in.CACertBundle,
+				Name:                     in.Name,
+				Description:              in.Description,
+				APIBaseURL:               in.APIBaseURL,
+				BaseURL:                  in.BaseURL,
+				CACertBundle:             in.CACertBundle,
+				ToolsMetadataURL:         in.ToolsMetadataURL,
+				UseInternalToolsMetadata: &in.UseInternalToolsMetadata,
 			},
 		}, auth)
 		if err != nil {
@@ -82,15 +86,18 @@ func (c *Client) UpdateGiteaEndpoint(ctx context.Context, name string, in GiteaE
 	desc := in.Description
 	apiURL := in.APIBaseURL
 	baseURL := in.BaseURL
+	useInternalToolsMetadata := in.UseInternalToolsMetadata
 	return c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
 		_, err := c.api.Endpoints.UpdateGiteaEndpoint(&endpoints.UpdateGiteaEndpointParams{
 			Context: ctx,
 			Name:    name,
 			Body: garmparams.UpdateGiteaEndpointParams{
-				Description:  &desc,
-				APIBaseURL:   &apiURL,
-				BaseURL:      &baseURL,
-				CACertBundle: in.CACertBundle,
+				Description:              &desc,
+				APIBaseURL:               &apiURL,
+				BaseURL:                  &baseURL,
+				CACertBundle:             in.CACertBundle,
+				ToolsMetadataURL:         in.ToolsMetadataURL,
+				UseInternalToolsMetadata: &useInternalToolsMetadata,
 			},
 		}, auth)
 		return err

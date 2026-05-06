@@ -25,6 +25,16 @@ type GiteaEndpointSpec struct {
 	// +optional
 	Description string `json:"description,omitempty"`
 
+	// ToolsMetadataURL is the URL used to discover Gitea act_runner releases.
+	// If empty, GARM uses its default public Gitea runner releases URL.
+	// +optional
+	// +kubebuilder:validation:Pattern=`^https?://.+`
+	ToolsMetadataURL string `json:"toolsMetadataURL,omitempty"`
+
+	// UseInternalToolsMetadata tells GARM to use its internally cached tools metadata.
+	// +optional
+	UseInternalToolsMetadata bool `json:"useInternalToolsMetadata,omitempty"`
+
 	// CACertBundleSecretRef points at a Secret key holding a PEM CA bundle.
 	// Required only when the Gitea instance uses a non-public CA.
 	// +optional
