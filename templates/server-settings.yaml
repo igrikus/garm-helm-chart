@@ -1,0 +1,18 @@
+apiVersion: garm.igrikus.dev/v1alpha1
+kind: ServerSettings
+metadata:
+  name: {{ include "garm.fullname" . }}
+  labels:
+    {{- include "garm.labels" . | nindent 4 }}
+spec:
+  metadataURL: "{{- if .Values.garm.metadataUrl }}{{ tpl .Values.garm.metadataUrl . }}{{- else }}{{ .Values.garm.url | trimSuffix "/" }}/api/v1/metadata{{- end }}"
+  callbackURL: "{{- if .Values.garm.callbackUrl }}{{ tpl .Values.garm.callbackUrl . }}{{- else }}{{ .Values.garm.url | trimSuffix "/" }}/api/v1/callbacks{{- end }}"
+  webhookURL: "{{- if .Values.garm.webhookUrl }}{{ tpl .Values.garm.webhookUrl . }}{{- else }}{{ .Values.garm.url | trimSuffix "/" }}/webhooks{{- end }}"
+  {{- if ne .Values.garm.minimumJobAgeBackoffSeconds nil }}
+  minimumJobAgeBackoffSeconds: {{ .Values.garm.minimumJobAgeBackoffSeconds }}
+  {{- end }}
+  {{- with .Values.garm.caCertBundleSecretRef }}
+  caCertBundleSecretRef:
+    name: {{ required "garm.caCertBundleSecretRef.name is required" .name | quote }}
+    key: {{ required "garm.caCertBundleSecretRef.key is required" .key | quote }}
+  {{- end }}

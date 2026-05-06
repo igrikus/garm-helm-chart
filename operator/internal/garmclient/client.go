@@ -93,6 +93,10 @@ type Interface interface {
 
 	// Instances.
 	DeleteInstance(ctx context.Context, name string, force bool) error
+
+	// Server settings.
+	GetServerSettings(ctx context.Context) (*garmparams.ControllerInfo, error)
+	UpdateServerSettings(ctx context.Context, in ServerSettingsUpdate) error
 }
 
 // Config sources auth from env. BaseURL is the GARM HTTP root (e.g.

@@ -40,6 +40,7 @@ type Client struct {
 	Instances      map[string][]garmparams.Instance // keyed by pool ID
 	OrgHooks       map[string]garmparams.HookInfo
 	RepoHooks      map[string]garmparams.HookInfo
+	ServerSettings garmparams.ControllerInfo
 	nextCredID     int64
 	nextOrgID      int
 	nextRepoID     int
@@ -63,6 +64,41 @@ func New() *Client {
 		OrgHooks:    map[string]garmparams.HookInfo{},
 		RepoHooks:   map[string]garmparams.HookInfo{},
 	}
+}
+
+func (c *Client) GetServerSettings(_ context.Context) (*garmparams.ControllerInfo, error) {
+	out := c.ServerSettings
+	return &out, nil
+}
+
+func (c *Client) UpdateServerSettings(_ context.Context, in garmclient.ServerSettingsUpdate) error {
+	if in.MetadataURL != nil {
+		c.ServerSettings.MetadataURL = *in.MetadataURL
+	}
+	if in.CallbackURL != nil {
+		c.ServerSettings.CallbackURL = *in.CallbackURL
+	}
+	if in.WebhookURL != nil {
+		c.ServerSettings.WebhookURL = *in.WebhookURL
+	}
+	if in.AgentURL != nil {
+		c.ServerSettings.AgentURL = *in.AgentURL
+	}
+	if in.GARMAgentReleasesURL != nil {
+		c.ServerSettings.GARMAgentReleasesURL = *in.GARMAgentReleasesURL
+	}
+	if in.SyncGARMAgentTools != nil {
+		c.ServerSettings.SyncGARMAgentTools = *in.SyncGARMAgentTools
+	}
+	if in.MinimumJobAgeBackoffSeconds != nil {
+		c.ServerSettings.MinimumJobAgeBackoff = *in.MinimumJobAgeBackoffSeconds
+	}
+	if in.ClearCACertBundle {
+		c.ServerSettings.CACertBundle = nil
+	} else if len(in.CACertBundle) > 0 {
+		c.ServerSettings.CACertBundle = in.CACertBundle
+	}
+	return nil
 }
 
 var _ garmclient.Interface = (*Client)(nil)

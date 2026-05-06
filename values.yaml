@@ -32,6 +32,12 @@ garm:
   metadataUrl: ""
   ## -- Specify webhook URL (with correct URI path). If empty, garm.url will be used.
   webhookUrl: ""
+  ## -- Minimum queued-job age in seconds before GARM allocates a runner. Set 0 for immediate reaction. Leave null to use the GARM server default/current value.
+  minimumJobAgeBackoffSeconds: null
+  ## -- Authoritative CA bundle Secret reference for the GARM controller. If omitted, the operator clears any existing GARM controller CA bundle.
+  caCertBundleSecretRef: null
+  #   name: "garm-ca"
+  #   key: "ca.crt"
 
   ## -- TLS configuration for the GARM API server.
   ## -- This is optional. A reverse proxy or Ingress with TLS termination can be used instead.

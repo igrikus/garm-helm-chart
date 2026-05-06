@@ -25,6 +25,7 @@ rules:
   - repositories
   - runners
   - runnertemplates
+  - serversettings
   verbs:
   - create
   - delete
@@ -61,6 +62,7 @@ rules:
   - repositories/status
   - runners/status
   - runnertemplates/status
+  - serversettings/status
   verbs:
   - get
   - patch

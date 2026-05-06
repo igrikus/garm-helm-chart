@@ -270,6 +270,14 @@ func main() {
 		setupLog.Error(err, "Failed to create controller", "controller", "Runner")
 		os.Exit(1)
 	}
+	if err := (&controller.ServerSettingsReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		Garm:   garm,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "Failed to create controller", "controller", "ServerSettings")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

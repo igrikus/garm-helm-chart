@@ -22,6 +22,7 @@ rules:
       - repositories
       - runnertemplates
       - runners
+      - serversettings
     verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
   - apiGroups: ["garm.igrikus.dev"]
     resources:
@@ -48,6 +49,7 @@ rules:
       - repositories/status
       - runnertemplates/status
       - runners/status
+      - serversettings/status
     verbs: ["get", "patch", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
