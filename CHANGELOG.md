@@ -1,5 +1,34 @@
 # Changelog
 
+## [4.0.0](https://github.com/igrikus/garm-helm-chart/compare/v3.0.0...v4.0.0) (2026-05-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* GARM server/controller settings are now reconciled through a new
+  `ServerSettings` custom resource. The chart renders this resource from the
+  existing `garm.callbackUrl`, `garm.metadataUrl`, `garm.webhookUrl`, and
+  `garm.url` values, so those settings are continuously enforced by the
+  operator instead of being applied only during first-run database
+  initialization.
+
+### Features
+
+* Added the `ServerSettings` CRD and operator reconciler for GARM
+  server/controller settings. The operator now compares desired settings with
+  GARM's `/controller-info` response and updates drift through the GARM
+  controller API.
+* Added `garm.minimumJobAgeBackoffSeconds` to configure GARM's minimum queued
+  job age before runner allocation. The value is optional; when omitted, the
+  chart leaves GARM's current/server-side default unchanged. Explicit `0` is
+  supported for immediate scale-out behavior.
+* Added `garm.caCertBundleSecretRef` for managing the controller CA bundle from
+  a Kubernetes Secret. This field is authoritative: when it is omitted, the
+  operator clears any existing GARM controller CA bundle.
+* The `ServerSettings` API includes fields for GARM agent-mode settings, but
+  those values are intentionally not exposed through `values.yaml` yet because
+  agent mode is not fully supported by this chart. ([b90a794](https://github.com/igrikus/garm-helm-chart/commit/b90a794c7f42c0d0f7fa781d4b038c310f7c733d))
+
 ## [3.0.0](https://github.com/igrikus/garm-helm-chart/compare/v2.1.0...v3.0.0) (2026-05-06)
 
 
