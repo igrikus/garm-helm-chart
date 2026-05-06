@@ -1,0 +1,13 @@
+{
+  "bootstrap-sha": "232b8e8264a408218e0f528f00690d8b946171b6",
+  "packages": {
+    ".": {
+      "release-type": "helm",
+      "package-name": "garm",
+      "component": "garm",
+      "include-component-in-tag": false,
+      "include-v-in-tag": true,
+      "changelog-path": "CHANGELOG.md"
+    }
+  }
+}

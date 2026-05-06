@@ -1,0 +1,231 @@
+/*
+Copyright 2026 Igor Kachurin.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+*/
+
+package controller
+
+import (
+	"context"
+	"fmt"
+
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	garmv1alpha1 "github.com/igrikus/garm-helm-chart/operator/api/v1alpha1"
+	"github.com/igrikus/garm-helm-chart/operator/internal/garmclient"
+)
+
+// EnterpriseReconciler reconciles a Enterprise object
+type EnterpriseReconciler struct {
+	client.Client
+	Scheme *runtime.Scheme
+	Garm   garmclient.Interface
+}
+
+// +kubebuilder:rbac:groups=garm.igrikus.dev,resources=enterprises,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=garm.igrikus.dev,resources=enterprises/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=garm.igrikus.dev,resources=enterprises/finalizers,verbs=update
+// +kubebuilder:rbac:groups=garm.igrikus.dev,resources=githubendpoints;githubcredentials,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+
+func (r *EnterpriseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := logf.FromContext(ctx)
+
+	obj := &garmv1alpha1.Enterprise{}
+	if err := r.Get(ctx, req.NamespacedName, obj); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	if !obj.DeletionTimestamp.IsZero() {
+		if controllerutil.ContainsFinalizer(obj, garmv1alpha1.Finalizer) {
+			if obj.Status.ID != "" {
+				if err := r.Garm.DeleteEnterprise(ctx, obj.Status.ID); err != nil && !garmclient.IsNotFound(err) {
+					log.Error(err, "delete enterprise")
+					return ctrl.Result{}, err
+				}
+			}
+			controllerutil.RemoveFinalizer(obj, garmv1alpha1.Finalizer)
+			if err := r.Update(ctx, obj); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		return ctrl.Result{}, nil
+	}
+
+	if !controllerutil.ContainsFinalizer(obj, garmv1alpha1.Finalizer) {
+		controllerutil.AddFinalizer(obj, garmv1alpha1.Finalizer)
+		return ctrl.Result{Requeue: true}, r.Update(ctx, obj)
+	}
+
+	credsName, err := r.resolveEnterpriseRefs(ctx, obj)
+	if err != nil {
+		return r.markEnterpriseFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss, err)
+	}
+	balancer := string(obj.Spec.PoolBalancerType)
+	if balancer == "" {
+		balancer = string(garmv1alpha1.PoolBalancerRoundRobin)
+	}
+
+	if obj.Status.ID == "" {
+		webhookSecret, err := createWebhookSecret(ctx, r.Client, obj.Namespace, obj.Spec.WebhookSecretRef)
+		if err != nil {
+			return r.markEnterpriseFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss, err)
+		}
+		id, err := r.Garm.CreateEnterprise(ctx, garmclient.EnterpriseSpec{
+			Name: obj.Spec.Name, CredentialsName: credsName, WebhookSecret: webhookSecret, PoolBalancerType: balancer,
+		})
+		if err != nil {
+			return r.markEnterpriseFalse(ctx, obj, garmv1alpha1.ReasonAPIError, err)
+		}
+		obj.Status.ID = id
+	} else {
+		actual, gerr := r.Garm.GetEnterprise(ctx, obj.Status.ID)
+		if garmclient.IsNotFound(gerr) {
+			obj.Status.ID = ""
+			return ctrl.Result{Requeue: true}, r.Status().Update(ctx, obj)
+		}
+		if gerr != nil {
+			return r.markEnterpriseFalse(ctx, obj, garmv1alpha1.ReasonAPIError, gerr)
+		}
+		if actual.Name != obj.Spec.Name {
+			if err := r.Garm.DeleteEnterprise(ctx, obj.Status.ID); err != nil && !garmclient.IsNotFound(err) {
+				return r.markEnterpriseFalse(ctx, obj, garmv1alpha1.ReasonAPIError, err)
+			}
+			obj.Status.ID = ""
+			return ctrl.Result{Requeue: true}, r.Status().Update(ctx, obj)
+		}
+		upd := garmclient.EntityUpdate{}
+		actualCreds := actual.CredentialsName
+		if actualCreds == "" {
+			actualCreds = actual.Credentials.Name
+		}
+		if actualCreds != credsName {
+			n := credsName
+			upd.CredentialsName = &n
+		}
+		if string(actual.GetBalancerType()) != balancer {
+			b := balancer
+			upd.PoolBalancerType = &b
+		}
+		if obj.Spec.WebhookSecretRef != nil {
+			secret, err := readWebhookSecret(ctx, r.Client, obj.Namespace, *obj.Spec.WebhookSecretRef)
+			if err != nil {
+				return r.markEnterpriseFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss, err)
+			}
+			upd.WebhookSecret = &secret
+		}
+		if upd.CredentialsName != nil || upd.PoolBalancerType != nil || upd.WebhookSecret != nil {
+			if err := r.Garm.UpdateEnterprise(ctx, obj.Status.ID, upd); err != nil {
+				return r.markEnterpriseFalse(ctx, obj, garmv1alpha1.ReasonAPIError, err)
+			}
+		}
+	}
+
+	obj.Status.ObservedGeneration = obj.Generation
+	meta.SetStatusCondition(&obj.Status.Conditions, metav1.Condition{
+		Type: garmv1alpha1.ConditionReady, Status: metav1.ConditionTrue,
+		Reason: garmv1alpha1.ReasonReconciled, ObservedGeneration: obj.Generation,
+	})
+	if err := r.Status().Update(ctx, obj); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{RequeueAfter: requeueAfter}, nil
+}
+
+func (r *EnterpriseReconciler) resolveEnterpriseRefs(ctx context.Context, obj *garmv1alpha1.Enterprise) (string, error) {
+	if obj.Spec.ForgeRef.Kind != "GithubEndpoint" {
+		return "", fmt.Errorf("unsupported forgeRef.kind %q", obj.Spec.ForgeRef.Kind)
+	}
+	ep := &garmv1alpha1.GithubEndpoint{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: obj.Namespace, Name: obj.Spec.ForgeRef.Name}, ep); err != nil {
+		if apierrors.IsNotFound(err) {
+			return "", fmt.Errorf("github endpoint %s/%s not found", obj.Namespace, obj.Spec.ForgeRef.Name)
+		}
+		return "", err
+	}
+	if ep.Status.ID == "" {
+		return "", fmt.Errorf("github endpoint %s/%s not yet reconciled", obj.Namespace, ep.Name)
+	}
+	creds := &garmv1alpha1.GithubCredentials{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: obj.Namespace, Name: obj.Spec.CredentialsRef.Name}, creds); err != nil {
+		if apierrors.IsNotFound(err) {
+			return "", fmt.Errorf("github credentials %s/%s not found", obj.Namespace, obj.Spec.CredentialsRef.Name)
+		}
+		return "", err
+	}
+	if creds.Spec.EndpointRef.Name != obj.Spec.ForgeRef.Name {
+		return "", fmt.Errorf("credentials %s/%s reference endpoint %q, want %q", obj.Namespace, creds.Name, creds.Spec.EndpointRef.Name, obj.Spec.ForgeRef.Name)
+	}
+	if creds.Status.ID == "" {
+		return "", fmt.Errorf("github credentials %s/%s not yet reconciled", obj.Namespace, creds.Name)
+	}
+	return creds.Name, nil
+}
+
+func (r *EnterpriseReconciler) markEnterpriseFalse(ctx context.Context, obj *garmv1alpha1.Enterprise, reason string, cause error) (ctrl.Result, error) {
+	meta.SetStatusCondition(&obj.Status.Conditions, metav1.Condition{
+		Type: garmv1alpha1.ConditionReady, Status: metav1.ConditionFalse,
+		Reason: reason, Message: cause.Error(), ObservedGeneration: obj.Generation,
+	})
+	if err := r.Status().Update(ctx, obj); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, cause
+}
+
+func (r *EnterpriseReconciler) secretToEnterprises(ctx context.Context, s client.Object) []reconcile.Request {
+	list := &garmv1alpha1.EnterpriseList{}
+	if err := r.List(ctx, list, client.InNamespace(s.GetNamespace())); err != nil {
+		return nil
+	}
+	var out []reconcile.Request
+	for i := range list.Items {
+		ent := &list.Items[i]
+		if ent.Spec.WebhookSecretRef != nil && ent.Spec.WebhookSecretRef.Name == s.GetName() {
+			out = append(out, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: ent.Namespace, Name: ent.Name}})
+		}
+	}
+	return out
+}
+
+func (r *EnterpriseReconciler) refToEnterprises(ctx context.Context, ref client.Object) []reconcile.Request {
+	list := &garmv1alpha1.EnterpriseList{}
+	if err := r.List(ctx, list, client.InNamespace(ref.GetNamespace())); err != nil {
+		return nil
+	}
+	var out []reconcile.Request
+	for i := range list.Items {
+		ent := &list.Items[i]
+		if ent.Spec.CredentialsRef.Name == ref.GetName() || ent.Spec.ForgeRef.Name == ref.GetName() {
+			out = append(out, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: ent.Namespace, Name: ent.Name}})
+		}
+	}
+	return out
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *EnterpriseReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&garmv1alpha1.Enterprise{}).
+		Watches(&garmv1alpha1.GithubEndpoint{}, handler.EnqueueRequestsFromMapFunc(r.refToEnterprises)).
+		Watches(&garmv1alpha1.GithubCredentials{}, handler.EnqueueRequestsFromMapFunc(r.refToEnterprises)).
+		Watches(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(r.secretToEnterprises)).
+		Named("enterprise").
+		Complete(r)
+}

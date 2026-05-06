@@ -1,0 +1,14 @@
+apiVersion: garm.igrikus.dev/v1alpha1
+kind: RunnerTemplate
+metadata:
+  labels:
+    app.kubernetes.io/name: garm-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: runnertemplate-sample
+spec:
+  description: Custom Linux GitHub runner install template
+  osType: linux
+  forgeType: github
+  data: |
+    #!/bin/bash
+    echo "install runner"

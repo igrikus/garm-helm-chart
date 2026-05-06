@@ -1,42 +1,59 @@
 # GARM Helm Chart
 
-This Helm chart deploys [GARM (GitHub/Gitea Actions Runner Manager)](https://github.com/cloudbase/garm) on a Kubernetes cluster.
+This chart installs [GARM](https://github.com/cloudbase/garm) and an operator that reconciles GARM configuration from CRDs.
 
 > [!NOTE]
 > This is an unofficial Helm chart and is not affiliated with the GARM project. Please do not open issues regarding this chart in the official GARM repository.
 
-## Chart Status & Expectations
-
-- This chart was initially created for a specific use case (Gitea with a GCP provider). For other scenarios, it is provided on a best-effort basis. Pull requests are highly encouraged and welcome.
-- The chart relies on unreleased GARM features (e.g., WebUI, Gitea forge support). Right now it uses a pinned `nightly` image hash that has been tested. Using other image versions or tags may result in partial or complete failure.
-
 ## Architecture
 
-This chart uses an operator-like pattern, launching two pods:
+The release contains two long-running workloads:
 
-- **GARM Server (`Deployment`):** The main GARM application that runs continuously.
-- **Operator (`Job`):** A one-time job that runs during `helm install` or `helm upgrade` to apply declarative configurations for forges, providers, and runner pools from your `values.yaml`.
+- `garm`: the GARM API server, UI, database storage, and provider configuration.
+- `garm-operator`: watches `garm.igrikus.dev/v1alpha1` resources and calls the GARM API.
+
+The chart can render CRs for endpoints, credentials, organizations, repositories, enterprises, runner templates, and pools. The operator owns lifecycle reconciliation after install and upgrade.
 
 ## Installation
 
-1.  Create a copy of `values.yaml` (e.g., `my-values.yaml`) and customize it for your environment.
-2.  Install the chart:
-    ```bash
-    helm install -f my-values.yaml my-garm oci://ghcr.io/igrikus/garm
-    ```
+1. Create a copy of `values.yaml` (e.g., `my-values.yaml`) and customize it for your environment.
 
-## Configuration
+2. Install the published OCI chart:
 
-All configuration is managed through the `values.yaml` file, which serves as the single source of truth for your GARM deployment. Please refer to the comments within `values.yaml` for detailed information on all available options.
+```bash
+helm install my-garm oci://ghcr.io/igrikus/garm \
+  --namespace garm \
+  --create-namespace \
+  -f my-values.yaml
+```
 
-### Pool Management
+## Upgrading
 
-This chart provides a convenient way to manage GARM pools directly from your `values.yaml` file.
+Helm does not update CRDs on upgrade ([by design](https://helm.sh/docs/chart_best_practices/custom_resource_definitions/#some-caveats-and-explanations)). When upgrading to a version with CRD changes, apply the CRDs manually before running `helm upgrade`:
 
-**Important Notes:**
+```bash
+export GARM_CHART_VERSION=<version>
+helm pull oci://ghcr.io/igrikus/garm --version "${GARM_CHART_VERSION}" --untar
+kubectl apply -f garm/crds/
+```
 
-- **Gitea Exclusive:** Currently, this declarative pool management feature is only implemented for Gitea forges.
-- **Pool Recreation:** Pools are recreated on every `helm upgrade` to ensure they are always synchronized with the state defined in `values.yaml`. Any manual changes made to the pools via the GARM UI or API will be lost on chart upgrade
+Then upgrade the release:
+
+```bash
+helm upgrade my-garm oci://ghcr.io/igrikus/garm \
+  --version <version> \
+  --namespace garm \
+  -f my-values.yaml
+```
+
+## Operator local development
+
+1. Run `make generate manifests` in `operator/` after API type or marker changes.
+2. Run `make check-generated` in `operator/` to verify generated CRDs, RBAC, and DeepCopy methods are committed.
+3. Run `go test ./...` in `operator/`.
+4. Run `helm lint .` and `helm template . --include-crds`.
+
+CI runs the same generated-artifact drift check and fails if `crds/`, RBAC, or DeepCopy output is stale. The release workflow does not regenerate CRDs; published chart tags must already contain the generated CRDs.
 
 ## Contributing
 

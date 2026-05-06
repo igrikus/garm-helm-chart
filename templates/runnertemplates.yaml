@@ -1,0 +1,18 @@
+{{- range $template := .Values.runnerTemplates }}
+{{- $name := required "runnerTemplates[].name is required" $template.name }}
+---
+apiVersion: garm.igrikus.dev/v1alpha1
+kind: RunnerTemplate
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "garm.labels" $ | nindent 4 }}
+spec:
+  {{- with $template.description }}
+  description: {{ . | quote }}
+  {{- end }}
+  osType: {{ default "linux" $template.osType | quote }}
+  forgeType: {{ required (printf "runnerTemplates[%s].forgeType is required" $name) $template.forgeType | quote }}
+  data: |
+{{ required (printf "runnerTemplates[%s].data is required" $name) $template.data | nindent 4 }}
+{{- end }}
