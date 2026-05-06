@@ -57,7 +57,10 @@ CI runs the same generated-artifact drift check and fails if `crds/`, RBAC, or D
 
 ## Contributing
 
-Contributions are highly welcome! This project uses `semantic-release` to automate the release process, so it's important that all commit messages adhere to the [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/).
+Contributions are highly welcome! This project uses [Release Please](https://github.com/googleapis/release-please) to automate releases, so it's important that all commit messages adhere to the Conventional Commits specification.
+
+> [!NOTE]
+> Do not edit `version:` in `Chart.yaml` by hand for normal releases. Let Release Please update it in the release pull request.
 
 When you create a pull request, please make sure your commit messages are structured as follows:
 
