@@ -49,6 +49,10 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	"$(CONTROLLER_GEN)" object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
+.PHONY: check-generated
+check-generated: generate manifests ## Verify generated CRDs, RBAC, and DeepCopy methods are committed.
+	git -C .. diff --exit-code -- crds operator/api/v1alpha1/zz_generated.deepcopy.go operator/config/rbac
+
 .PHONY: fmt
 fmt: ## Run go fmt against code.
 	go fmt ./...

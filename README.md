@@ -48,10 +48,12 @@ helm upgrade my-garm oci://ghcr.io/igrikus/garm \
 
 ## Operator local development
 
-1. Run `make manifests` and `make generate` in `operator/` after API changes.
-2. Run `go test ./...` in `operator/`.
-3. Run `helm lint .` and `helm template . --include-crds`.
-4. Keep root `crds/` in sync with operator API changes.
+1. Run `make generate manifests` in `operator/` after API type or marker changes.
+2. Run `make check-generated` in `operator/` to verify generated CRDs, RBAC, and DeepCopy methods are committed.
+3. Run `go test ./...` in `operator/`.
+4. Run `helm lint .` and `helm template . --include-crds`.
+
+CI runs the same generated-artifact drift check and fails if `crds/`, RBAC, or DeepCopy output is stale. The release workflow does not regenerate CRDs; published chart tags must already contain the generated CRDs.
 
 ## Contributing
 

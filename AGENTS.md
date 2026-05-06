@@ -45,6 +45,6 @@ Enterprise, Repository, Pool, Runner, RunnerTemplate, GiteaEndpoint, GiteaCreden
 ## Key conventions
 
 - **Commit messages**: Conventional Commits required. `semantic-release` on `main` auto-bumps `Chart.yaml` version and publishes. Do not edit `version:` in `Chart.yaml` by hand.
-- **CRD sync**: after changing Go types in `operator/api/`, run `make manifests` and `make generate` from `operator/` to keep `crds/` and deepcopy in sync.
+- **CRD sync**: after changing Go types in `operator/api/`, run `make generate manifests` from `operator/` to keep `crds/` and deepcopy in sync. Run `make check-generated` before pushing; CI fails when generated artifacts are stale. Release CI does not regenerate CRDs.
 - **Values structure**: forge-specific resources (endpoints, credentials, orgs, repos, pools) live under `forges.gitea.*` and `forges.github.*`. Provider configs live under `providers[]`.
 - **Template naming**: Helm templates for the operator use `operator-` prefix (e.g., `operator-deployment.yaml`, `operator-rbac.yaml`).
