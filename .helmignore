@@ -4,7 +4,9 @@
 .DS_Store
 # Common VCS dirs
 .git/
+.gitattributes
 .gitignore
+.github/
 .bzr/
 .bzrignore
 .hg/
@@ -21,4 +23,15 @@
 .idea/
 *.tmproj
 .vscode/
+
+.agents/
+.codex
+.editorconfig
+.helmignore
+.releaserc.json
+*-values.yaml
+
 operator/
+
+AGENTS.md
+CLAUDE.md
