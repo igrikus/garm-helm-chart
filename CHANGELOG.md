@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.0.0](https://github.com/igrikus/garm-helm-chart/compare/v3.0.0...v4.0.0) (2026-05-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* ServerSettings CR
+
+### Features
+
+* ServerSettings CR ([b90a794](https://github.com/igrikus/garm-helm-chart/commit/b90a794c7f42c0d0f7fa781d4b038c310f7c733d))
+
 ## [3.0.0](https://github.com/igrikus/garm-helm-chart/compare/v2.1.0...v3.0.0) (2026-05-06)
 
 
