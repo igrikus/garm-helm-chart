@@ -140,6 +140,9 @@ resources:
       memory: 64Mi
 
 ## -- GARM operator manager configuration.
+## -- Setting operator.enabled=false disables only operator runtime resources.
+## -- CRDs in the chart crds/ directory are installed by Helm before templates and are not controlled by values.
+## -- Use helm install --skip-crds if CRDs should not be installed.
 operator:
   enabled: true
   image:
@@ -208,6 +211,8 @@ runnerTemplates: []
   #     echo "install runner"
 
 ## -- Configuration for different git forges.
+## -- These values render custom resources.
+## -- They can be managed only when the chart CRDs are installed and operator.enabled=true.
 forges:
   ## -- Gitea server configurations.
   gitea:
