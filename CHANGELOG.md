@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.0](https://github.com/igrikus/garm-helm-chart/compare/v4.0.0...v4.1.0) (2026-05-07)
+
+
+### Features
+
+* operator watch scope ([7695acb](https://github.com/igrikus/garm-helm-chart/commit/7695acbcb0780da8aa55d6127d81c2c250605519))
+
 ## [4.0.0](https://github.com/igrikus/garm-helm-chart/compare/v3.0.0...v4.0.0) (2026-05-06)
 
 
