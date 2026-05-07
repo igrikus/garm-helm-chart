@@ -54,6 +54,7 @@ type Interface interface {
 
 	// Organizations.
 	CreateOrg(ctx context.Context, in OrgSpec) (string, error)
+	ListOrgs(ctx context.Context, name, endpoint string) ([]garmparams.Organization, error)
 	GetOrg(ctx context.Context, id string) (*garmparams.Organization, error)
 	UpdateOrg(ctx context.Context, id string, in OrgUpdate) error
 	DeleteOrg(ctx context.Context, id string) error

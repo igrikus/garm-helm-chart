@@ -101,14 +101,25 @@ func (r *GiteaOrganizationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		id, err := r.Garm.CreateOrg(ctx, garmclient.OrgSpec{
 			Name:             obj.Spec.Name,
 			CredentialsName:  creds.Name,
+			EndpointName:     obj.Spec.EndpointRef.Name,
 			WebhookSecret:    webhookSecret,
 			PoolBalancerType: balancer,
 			ForgeType:        string(garmparams.GiteaEndpointType),
 		})
 		if err != nil {
-			return r.markOrgFalse(ctx, obj, garmv1alpha1.ReasonAPIError, err)
+			if garmclient.IsConflict(err) {
+				adoptedID, adoptErr := r.adoptExistingOrg(ctx, obj)
+				if adoptErr == nil {
+					obj.Status.ID = adoptedID
+				} else {
+					return r.markOrgFalse(ctx, obj, garmv1alpha1.ReasonAPIError, adoptErr)
+				}
+			} else {
+				return r.markOrgFalse(ctx, obj, garmv1alpha1.ReasonAPIError, err)
+			}
+		} else {
+			obj.Status.ID = id
 		}
-		obj.Status.ID = id
 	} else {
 		actual, gerr := r.Garm.GetOrg(ctx, obj.Status.ID)
 		if garmclient.IsNotFound(gerr) {
@@ -161,6 +172,20 @@ func (r *GiteaOrganizationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{RequeueAfter: requeueAfter}, nil
+}
+
+func (r *GiteaOrganizationReconciler) adoptExistingOrg(ctx context.Context, obj *garmv1alpha1.GiteaOrganization) (string, error) {
+	orgs, err := r.Garm.ListOrgs(ctx, obj.Spec.Name, obj.Spec.EndpointRef.Name)
+	if err != nil {
+		return "", err
+	}
+	if len(orgs) != 1 {
+		return "", fmt.Errorf("expected one existing organization named %q for endpoint %q, found %d", obj.Spec.Name, obj.Spec.EndpointRef.Name, len(orgs))
+	}
+	if orgs[0].ID == "" {
+		return "", fmt.Errorf("existing organization named %q for endpoint %q has empty ID", obj.Spec.Name, obj.Spec.EndpointRef.Name)
+	}
+	return orgs[0].ID, nil
 }
 
 func (r *GiteaOrganizationReconciler) markOrgFalse(ctx context.Context, obj *garmv1alpha1.GiteaOrganization, reason string, cause error) (ctrl.Result, error) {

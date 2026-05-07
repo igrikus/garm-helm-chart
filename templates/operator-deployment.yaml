@@ -41,6 +41,10 @@ spec:
           env:
             - name: GARM_BASE_URL
               value: {{ .Values.operator.garmBaseUrl | default (printf "%s://%s:%v" (ternary "https" "http" .Values.garm.tls.enabled) (include "garm.fullname" .) .Values.service.port) | quote }}
+            {{- if ne .Values.operator.scope "cluster" }}
+            - name: WATCH_NAMESPACE
+              value: {{ default .Release.Namespace .Values.operator.watchNamespace | quote }}
+            {{- end }}
             - name: GARM_USERNAME
               valueFrom:
                 secretKeyRef:

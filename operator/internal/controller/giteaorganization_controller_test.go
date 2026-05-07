@@ -13,6 +13,7 @@ package controller
 import (
 	"context"
 
+	garmparams "github.com/cloudbase/garm/params"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -121,6 +122,73 @@ var _ = Describe("GiteaOrganization Controller", func() {
 			obj := &garmv1alpha1.GiteaOrganization{}
 			Expect(k8sClient.Get(ctx, nsn, obj)).To(Succeed())
 			Expect(obj.Status.ID).NotTo(BeEmpty())
+			Expect(obj.Status.Conditions).To(ContainElement(
+				And(
+					HaveField("Type", garmv1alpha1.ConditionReady),
+					HaveField("Status", metav1.ConditionTrue),
+				),
+			))
+		})
+
+		It("adopts an existing org when GARM reports create conflict", func() {
+			gc := fake.New()
+
+			Expect(k8sClient.Create(ctx, &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: "default"},
+				Data:       map[string][]byte{"token": []byte("ghp_dummy")},
+			})).To(Succeed())
+
+			Expect(k8sClient.Create(ctx, &garmv1alpha1.GiteaEndpoint{
+				ObjectMeta: metav1.ObjectMeta{Name: epName, Namespace: "default"},
+				Spec:       garmv1alpha1.GiteaEndpointSpec{BaseURL: "https://gitea.example.com"},
+			})).To(Succeed())
+			er := &GiteaEndpointReconciler{Client: k8sClient, Scheme: k8sClient.Scheme(), Garm: gc}
+			epNSN := types.NamespacedName{Name: epName, Namespace: "default"}
+			_, err := er.Reconcile(ctx, reconcile.Request{NamespacedName: epNSN})
+			Expect(err).NotTo(HaveOccurred())
+			_, err = er.Reconcile(ctx, reconcile.Request{NamespacedName: epNSN})
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(k8sClient.Create(ctx, &garmv1alpha1.GiteaCredentials{
+				ObjectMeta: metav1.ObjectMeta{Name: credName, Namespace: "default"},
+				Spec: garmv1alpha1.GiteaCredentialsSpec{
+					EndpointRef:  garmv1alpha1.LocalObjectRef{Name: epName},
+					PATSecretRef: garmv1alpha1.SecretKeyRef{Name: secretName, Key: "token"},
+				},
+			})).To(Succeed())
+			cr := &GiteaCredentialsReconciler{Client: k8sClient, Scheme: k8sClient.Scheme(), Garm: gc}
+			credNSN := types.NamespacedName{Name: credName, Namespace: "default"}
+			_, err = cr.Reconcile(ctx, reconcile.Request{NamespacedName: credNSN})
+			Expect(err).NotTo(HaveOccurred())
+			_, err = cr.Reconcile(ctx, reconcile.Request{NamespacedName: credNSN})
+			Expect(err).NotTo(HaveOccurred())
+
+			gc.Orgs["existing-org"] = garmparams.Organization{
+				ID:              "existing-org",
+				Name:            "myorg",
+				CredentialsName: credName,
+				Endpoint:        garmparams.ForgeEndpoint{Name: epName},
+			}
+
+			Expect(k8sClient.Create(ctx, &garmv1alpha1.GiteaOrganization{
+				ObjectMeta: metav1.ObjectMeta{Name: orgName, Namespace: "default"},
+				Spec: garmv1alpha1.GiteaOrganizationSpec{
+					EndpointRef:    garmv1alpha1.LocalObjectRef{Name: epName},
+					CredentialsRef: garmv1alpha1.LocalObjectRef{Name: credName},
+					Name:           "myorg",
+				},
+			})).To(Succeed())
+
+			or := &GiteaOrganizationReconciler{Client: k8sClient, Scheme: k8sClient.Scheme(), Garm: gc}
+			_, err = or.Reconcile(ctx, reconcile.Request{NamespacedName: nsn})
+			Expect(err).NotTo(HaveOccurred())
+			_, err = or.Reconcile(ctx, reconcile.Request{NamespacedName: nsn})
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(gc.Orgs).To(HaveLen(1))
+			obj := &garmv1alpha1.GiteaOrganization{}
+			Expect(k8sClient.Get(ctx, nsn, obj)).To(Succeed())
+			Expect(obj.Status.ID).To(Equal("existing-org"))
 			Expect(obj.Status.Conditions).To(ContainElement(
 				And(
 					HaveField("Type", garmv1alpha1.ConditionReady),

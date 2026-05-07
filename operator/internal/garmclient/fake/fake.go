@@ -29,6 +29,11 @@ type notFound struct{ what string }
 func (e *notFound) Error() string { return fmt.Sprintf("%s: not found", e.what) }
 func (e *notFound) Code() int     { return 404 }
 
+type conflict struct{ what string }
+
+func (e *conflict) Error() string { return fmt.Sprintf("%s: conflict", e.what) }
+func (e *conflict) Code() int     { return 409 }
+
 type Client struct {
 	Endpoints      map[string]garmparams.ForgeEndpoint
 	Credentials    map[int64]garmparams.ForgeCredentials
@@ -277,13 +282,33 @@ func (c *Client) CreateOrg(_ context.Context, in garmclient.OrgSpec) (string, er
 	if in.WebhookSecret == "" {
 		return "", errors.New("missing secret")
 	}
+	for _, org := range c.Orgs {
+		if org.Name == in.Name && org.Endpoint.Name == in.EndpointName {
+			return "", &conflict{what: "org " + in.Name}
+		}
+	}
 	c.nextOrgID++
 	id := fmt.Sprintf("org-%d", c.nextOrgID)
 	c.Orgs[id] = garmparams.Organization{
 		ID: id, Name: in.Name, CredentialsName: in.CredentialsName,
 		WebhookSecret: in.WebhookSecret,
+		Endpoint:      garmparams.ForgeEndpoint{Name: in.EndpointName},
 	}
 	return id, nil
+}
+
+func (c *Client) ListOrgs(_ context.Context, name, endpoint string) ([]garmparams.Organization, error) {
+	var out []garmparams.Organization
+	for _, org := range c.Orgs {
+		if name != "" && org.Name != name {
+			continue
+		}
+		if endpoint != "" && org.Endpoint.Name != endpoint {
+			continue
+		}
+		out = append(out, org)
+	}
+	return out, nil
 }
 
 func (c *Client) GetOrg(_ context.Context, id string) (*garmparams.Organization, error) {

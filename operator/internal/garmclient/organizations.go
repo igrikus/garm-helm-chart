@@ -22,6 +22,7 @@ import (
 type OrgSpec struct {
 	Name             string
 	CredentialsName  string
+	EndpointName     string
 	WebhookSecret    string
 	PoolBalancerType string // "" = roundrobin (server default)
 	ForgeType        string // "gitea" | "github"
@@ -53,6 +54,29 @@ func (c *Client) CreateOrg(ctx context.Context, in OrgSpec) (string, error) {
 		return nil
 	})
 	return id, err
+}
+
+func (c *Client) ListOrgs(ctx context.Context, name, endpoint string) ([]garmparams.Organization, error) {
+	var out []garmparams.Organization
+	err := c.call(ctx, func(auth runtime.ClientAuthInfoWriter) error {
+		params := organizations.NewListOrgsParamsWithContext(ctx)
+		if name != "" {
+			params.Name = &name
+		}
+		if endpoint != "" {
+			params.Endpoint = &endpoint
+		}
+		resp, err := c.api.Organizations.ListOrgs(params, auth)
+		if err != nil {
+			return err
+		}
+		out = resp.Payload
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *Client) GetOrg(ctx context.Context, id string) (*garmparams.Organization, error) {

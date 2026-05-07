@@ -157,6 +157,10 @@ operator:
     tag: ""
   replicas: 1
   leaderElection: true
+  ## -- Operator watch scope. Use "namespace" for one operator per Helm release namespace, or "cluster" for one operator managing all namespaces.
+  scope: "namespace"
+  ## -- Namespace watched when operator.scope=namespace. If empty, defaults to the Helm release namespace.
+  watchNamespace: ""
   ## -- Override the GARM API URL used by the operator.
   ## -- If unset, the chart uses the internal Service URL with the scheme selected from garm.tls.enabled.
   # garmBaseUrl: "https://garm.example.com"

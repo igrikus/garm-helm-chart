@@ -1,8 +1,11 @@
 {{- if .Values.operator.enabled -}}
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: {{ ternary "ClusterRole" "Role" (eq .Values.operator.scope "cluster") }}
 metadata:
   name: {{ include "garm.operatorName" . }}
+  {{- if ne .Values.operator.scope "cluster" }}
+  namespace: {{ default .Release.Namespace .Values.operator.watchNamespace }}
+  {{- end }}
   labels:
     {{- include "garm.labels" . | nindent 4 }}
     app.kubernetes.io/component: operator
@@ -53,15 +56,18 @@ rules:
     verbs: ["get", "patch", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: {{ ternary "ClusterRoleBinding" "RoleBinding" (eq .Values.operator.scope "cluster") }}
 metadata:
   name: {{ include "garm.operatorName" . }}
+  {{- if ne .Values.operator.scope "cluster" }}
+  namespace: {{ default .Release.Namespace .Values.operator.watchNamespace }}
+  {{- end }}
   labels:
     {{- include "garm.labels" . | nindent 4 }}
     app.kubernetes.io/component: operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
+  kind: {{ ternary "ClusterRole" "Role" (eq .Values.operator.scope "cluster") }}
   name: {{ include "garm.operatorName" . }}
 subjects:
   - kind: ServiceAccount
