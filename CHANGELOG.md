@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.1](https://github.com/igrikus/garm-helm-chart/compare/v4.1.0...v4.1.1) (2026-05-07)
+
+
+### Bug Fixes
+
+* adopt existing forge endpoints ([b6b4bc6](https://github.com/igrikus/garm-helm-chart/commit/b6b4bc69496305fde57c41a4c003f100a5f32980))
+
 ## [4.1.0](https://github.com/igrikus/garm-helm-chart/compare/v4.0.0...v4.1.0) (2026-05-07)
 
 
