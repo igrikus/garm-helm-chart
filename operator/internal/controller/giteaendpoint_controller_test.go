@@ -13,6 +13,7 @@ package controller
 import (
 	"context"
 
+	garmparams "github.com/cloudbase/garm/params"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -72,6 +73,39 @@ var _ = Describe("GiteaEndpoint Controller", func() {
 					HaveField("Status", metav1.ConditionTrue),
 				),
 			))
+		})
+
+		It("adopts an existing endpoint when GARM reports create conflict", func() {
+			Expect(k8sClient.Create(ctx, &garmv1alpha1.GiteaEndpoint{
+				ObjectMeta: metav1.ObjectMeta{Name: resourceName, Namespace: "default"},
+				Spec: garmv1alpha1.GiteaEndpointSpec{
+					BaseURL:                  "https://gitea.example.com",
+					ToolsMetadataURL:         "https://gitea.example.com/api/v1/repos/gitea/act_runner/releases",
+					UseInternalToolsMetadata: true,
+				},
+			})).To(Succeed())
+
+			gc := fake.New()
+			gc.Endpoints[resourceName] = garmparams.ForgeEndpoint{
+				Name:    resourceName,
+				BaseURL: "https://old-gitea.example.com",
+			}
+			r := &GiteaEndpointReconciler{Client: k8sClient, Scheme: k8sClient.Scheme(), Garm: gc}
+
+			_, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: nsn})
+			Expect(err).NotTo(HaveOccurred())
+			_, err = r.Reconcile(ctx, reconcile.Request{NamespacedName: nsn})
+			Expect(err).NotTo(HaveOccurred())
+
+			obj := &garmv1alpha1.GiteaEndpoint{}
+			Expect(k8sClient.Get(ctx, nsn, obj)).To(Succeed())
+			Expect(obj.Status.ID).To(Equal(resourceName))
+			Expect(obj.Status.Conditions).To(ContainElement(And(
+				HaveField("Type", garmv1alpha1.ConditionReady),
+				HaveField("Status", metav1.ConditionTrue),
+			)))
+			Expect(gc.Endpoints[resourceName].BaseURL).To(Equal("https://gitea.example.com"))
+			Expect(gc.Endpoints[resourceName].ToolsMetadataURL).To(Equal("https://gitea.example.com/api/v1/repos/gitea/act_runner/releases"))
 		})
 	})
 })

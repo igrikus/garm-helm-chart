@@ -107,9 +107,22 @@ func (r *GiteaEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if obj.Status.ID == "" {
 		name, err := r.Garm.CreateGiteaEndpoint(ctx, desired)
 		if err != nil {
-			return r.markSyncedFalse(ctx, obj, garmv1alpha1.ReasonAPIError, err)
+			if !garmclient.IsConflict(err) {
+				return r.markSyncedFalse(ctx, obj, garmv1alpha1.ReasonAPIError, err)
+			}
+			actual, getErr := r.Garm.GetGiteaEndpoint(ctx, desired.Name)
+			if getErr != nil {
+				return r.markSyncedFalse(ctx, obj, garmv1alpha1.ReasonAPIError, getErr)
+			}
+			obj.Status.ID = actual.Name
+			if endpointDrifted(actual, desired) {
+				if err := r.Garm.UpdateGiteaEndpoint(ctx, obj.Status.ID, desired); err != nil {
+					return r.markSyncedFalse(ctx, obj, garmv1alpha1.ReasonAPIError, err)
+				}
+			}
+		} else {
+			obj.Status.ID = name
 		}
-		obj.Status.ID = name
 	} else {
 		actual, err := r.Garm.GetGiteaEndpoint(ctx, obj.Status.ID)
 		if garmclient.IsNotFound(err) {

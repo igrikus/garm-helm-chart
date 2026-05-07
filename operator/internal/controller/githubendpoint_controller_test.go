@@ -13,6 +13,7 @@ package controller
 import (
 	"context"
 
+	garmparams "github.com/cloudbase/garm/params"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -64,5 +65,38 @@ var _ = Describe("GithubEndpoint Controller", func() {
 			HaveField("Type", garmv1alpha1.ConditionReady),
 			HaveField("Status", metav1.ConditionTrue),
 		)))
+	})
+
+	It("adopts an existing GitHub endpoint when GARM reports create conflict", func() {
+		Expect(k8sClient.Create(ctx, &garmv1alpha1.GithubEndpoint{
+			ObjectMeta: metav1.ObjectMeta{Name: nsn.Name, Namespace: namespace},
+			Spec: garmv1alpha1.GithubEndpointSpec{
+				BaseURL:     "https://github.com",
+				Description: "public github",
+			},
+		})).To(Succeed())
+
+		gc := fake.New()
+		gc.Endpoints[nsn.Name] = garmparams.ForgeEndpoint{
+			Name:       nsn.Name,
+			BaseURL:    "https://old-github.example.com",
+			APIBaseURL: "https://old-github.example.com/api/v3",
+		}
+		r := &GithubEndpointReconciler{Client: k8sClient, Scheme: k8sClient.Scheme(), Garm: gc}
+		_, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: nsn})
+		Expect(err).NotTo(HaveOccurred())
+		_, err = r.Reconcile(ctx, reconcile.Request{NamespacedName: nsn})
+		Expect(err).NotTo(HaveOccurred())
+
+		obj := &garmv1alpha1.GithubEndpoint{}
+		Expect(k8sClient.Get(ctx, nsn, obj)).To(Succeed())
+		Expect(obj.Status.ID).To(Equal(nsn.Name))
+		Expect(obj.Status.Conditions).To(ContainElement(And(
+			HaveField("Type", garmv1alpha1.ConditionReady),
+			HaveField("Status", metav1.ConditionTrue),
+		)))
+		Expect(gc.Endpoints[nsn.Name].BaseURL).To(Equal("https://github.com"))
+		Expect(gc.Endpoints[nsn.Name].APIBaseURL).To(Equal("https://api.github.com"))
+		Expect(gc.Endpoints[nsn.Name].UploadBaseURL).To(Equal("https://uploads.github.com"))
 	})
 })

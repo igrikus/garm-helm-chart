@@ -110,7 +110,7 @@ var _ garmclient.Interface = (*Client)(nil)
 
 func (c *Client) CreateGiteaEndpoint(_ context.Context, in garmclient.GiteaEndpointSpec) (string, error) {
 	if _, ok := c.Endpoints[in.Name]; ok {
-		return "", errors.New("conflict")
+		return "", &conflict{what: "endpoint " + in.Name}
 	}
 	c.Endpoints[in.Name] = garmparams.ForgeEndpoint{
 		Name: in.Name, Description: in.Description, APIBaseURL: in.APIBaseURL, BaseURL: in.BaseURL,
@@ -153,7 +153,7 @@ func (c *Client) DeleteGiteaEndpoint(_ context.Context, name string) error {
 
 func (c *Client) CreateGithubEndpoint(_ context.Context, in garmclient.GithubEndpointSpec) (string, error) {
 	if _, ok := c.Endpoints[in.Name]; ok {
-		return "", errors.New("conflict")
+		return "", &conflict{what: "endpoint " + in.Name}
 	}
 	c.Endpoints[in.Name] = garmparams.ForgeEndpoint{
 		Name: in.Name, Description: in.Description, APIBaseURL: in.APIBaseURL, UploadBaseURL: in.UploadBaseURL,

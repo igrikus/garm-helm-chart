@@ -91,9 +91,22 @@ func (r *GithubEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	if obj.Status.ID == "" {
 		name, err := r.Garm.CreateGithubEndpoint(ctx, desired)
 		if err != nil {
-			return r.markGithubEndpointFalse(ctx, obj, garmv1alpha1.ReasonAPIError, err)
+			if !garmclient.IsConflict(err) {
+				return r.markGithubEndpointFalse(ctx, obj, garmv1alpha1.ReasonAPIError, err)
+			}
+			actual, getErr := r.Garm.GetGithubEndpoint(ctx, desired.Name)
+			if getErr != nil {
+				return r.markGithubEndpointFalse(ctx, obj, garmv1alpha1.ReasonAPIError, getErr)
+			}
+			obj.Status.ID = actual.Name
+			if githubEndpointDrifted(actual, desired) {
+				if err := r.Garm.UpdateGithubEndpoint(ctx, obj.Status.ID, desired); err != nil {
+					return r.markGithubEndpointFalse(ctx, obj, garmv1alpha1.ReasonAPIError, err)
+				}
+			}
+		} else {
+			obj.Status.ID = name
 		}
-		obj.Status.ID = name
 	} else {
 		actual, err := r.Garm.GetGithubEndpoint(ctx, obj.Status.ID)
 		if garmclient.IsNotFound(err) {
