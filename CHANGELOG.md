@@ -1,5 +1,26 @@
 # Changelog
 
+## [5.0.0](https://github.com/igrikus/garm-helm-chart/compare/v4.1.2...v5.0.0) (2026-05-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* ServerSettings CR
+* operator rewrite ([#1](https://github.com/igrikus/garm-helm-chart/issues/1))
+
+### Features
+
+* operator rewrite ([#1](https://github.com/igrikus/garm-helm-chart/issues/1)) ([6a5df95](https://github.com/igrikus/garm-helm-chart/commit/6a5df952b5a03e23b057848a20033934b82c95ce))
+* operator watch scope ([7695acb](https://github.com/igrikus/garm-helm-chart/commit/7695acbcb0780da8aa55d6127d81c2c250605519))
+* ServerSettings CR ([b90a794](https://github.com/igrikus/garm-helm-chart/commit/b90a794c7f42c0d0f7fa781d4b038c310f7c733d))
+
+
+### Bug Fixes
+
+* adopt existing forge endpoints ([b6b4bc6](https://github.com/igrikus/garm-helm-chart/commit/b6b4bc69496305fde57c41a4c003f100a5f32980))
+* update garm and grpc dependencies ([e097a36](https://github.com/igrikus/garm-helm-chart/commit/e097a3625fea43c30f23b20705d2c32fdeca2f79))
+* update operator builder image ([5ee0353](https://github.com/igrikus/garm-helm-chart/commit/5ee035302579497b5b38ce01e1a7f620e5b9e218))
+
 ## [4.1.2](https://github.com/igrikus/garm-helm-chart/compare/v4.1.1...v4.1.2) (2026-05-08)
 
 
