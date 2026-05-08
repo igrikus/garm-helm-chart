@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.2](https://github.com/igrikus/garm-helm-chart/compare/v4.1.1...v4.1.2) (2026-05-08)
+
+
+### Bug Fixes
+
+* update garm and grpc dependencies ([e097a36](https://github.com/igrikus/garm-helm-chart/commit/e097a3625fea43c30f23b20705d2c32fdeca2f79))
+
 ## [4.1.1](https://github.com/igrikus/garm-helm-chart/compare/v4.1.0...v4.1.1) (2026-05-07)
 
 
