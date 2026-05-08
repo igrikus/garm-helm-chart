@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.3](https://github.com/igrikus/garm-helm-chart/compare/v4.1.2...v4.1.3) (2026-05-08)
+
+
+### Bug Fixes
+
+* update operator builder image ([5ee0353](https://github.com/igrikus/garm-helm-chart/commit/5ee035302579497b5b38ce01e1a7f620e5b9e218))
+
 ## [4.1.2](https://github.com/igrikus/garm-helm-chart/compare/v4.1.1...v4.1.2) (2026-05-08)
 
 
