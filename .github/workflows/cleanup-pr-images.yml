@@ -1,0 +1,22 @@
+name: "Cleanup PR images"
+
+on:
+  pull_request:
+    types:
+      - "closed"
+
+jobs:
+  cleanup:
+    name: "Delete operator PR image"
+    runs-on: "ubuntu-latest"
+    permissions:
+      packages: "write"
+    steps:
+      - name: "Delete PR image"
+        uses: "actions/delete-package-versions@v5"
+        with:
+          package-name: "garm-operator"
+          package-type: "container"
+          min-versions-to-keep: 0
+          delete-only-untagged-versions: false
+          tag: "pr-${{ github.event.pull_request.number }}"
