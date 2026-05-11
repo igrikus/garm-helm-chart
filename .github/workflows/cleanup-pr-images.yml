@@ -11,12 +11,33 @@ jobs:
     runs-on: "ubuntu-latest"
     permissions:
       packages: "write"
+    env:
+      TAG: "pr-${{ github.event.pull_request.number }}"
     steps:
       - name: "Delete PR image"
-        uses: "actions/delete-package-versions@v5"
+        uses: "actions/github-script@v7"
         with:
-          package-name: "garm-operator"
-          package-type: "container"
-          min-versions-to-keep: 0
-          delete-only-untagged-versions: false
-          tag: "pr-${{ github.event.pull_request.number }}"
+          script: |
+            const owner = context.repo.owner;
+            const tag = process.env.TAG;
+            const pkg = "garm-operator";
+
+            const versions = await github.rest.packages.getAllPackageVersionsForPackageOwnedByUser({
+              package_type: "container",
+              package_name: pkg,
+              username: owner,
+              per_page: 100,
+            });
+
+            for (const version of versions.data) {
+              const tags = version.metadata?.container?.tags || [];
+              if (tags.includes(tag)) {
+                console.log(`Deleting version ${version.id} (tags: ${tags.join(", ")})`);
+                await github.rest.packages.deletePackageVersionForUser({
+                  package_type: "container",
+                  package_name: pkg,
+                  username: owner,
+                  package_version_id: version.id,
+                });
+              }
+            }
