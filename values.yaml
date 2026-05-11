@@ -219,6 +219,19 @@ runnerTemplates: []
   #   data: |
   #     #!/bin/bash
   #     echo "install runner"
+  #   ## -- Extra context key-value pairs injected into extraSpecs.extra_context for every
+  #   ## -- pool referencing this template. Available in the template as {{ .ExtraContext.<key> }}.
+  #   ## -- Values can be inline or resolved from Kubernetes Secrets (k8s-style valueFrom).
+  #   ## -- Pool-level extra_context keys in extraSpec take precedence over template values.
+  #   extraContext:
+  #     cache_secret:
+  #       valueFrom:
+  #         secretKeyRef:
+  #           name: "gitea-cache-server-external-secret"
+  #           key: "external-secret"
+  #           namespace: "gitea-cache-server"  # optional, defaults to release namespace
+  #     static_var:
+  #       value: "some-literal-value"
 
 ## -- Configuration for different git forges.
 ## -- These values render custom resources.

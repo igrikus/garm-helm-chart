@@ -15,4 +15,23 @@ spec:
   forgeType: {{ required (printf "runnerTemplates[%s].forgeType is required" $name) $template.forgeType | quote }}
   data: |
 {{ required (printf "runnerTemplates[%s].data is required" $name) $template.data | nindent 4 }}
+  {{- with $template.extraContext }}
+  extraContext:
+    {{- range $key, $entry := . }}
+    {{ $key }}:
+      {{- if $entry.valueFrom }}
+      valueFrom:
+        {{- with $entry.valueFrom.secretKeyRef }}
+        secretKeyRef:
+          name: {{ .name | quote }}
+          key: {{ .key | quote }}
+          {{- with .namespace }}
+          namespace: {{ . | quote }}
+          {{- end }}
+        {{- end }}
+      {{- else }}
+      value: {{ $entry.value | quote }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
 {{- end }}
