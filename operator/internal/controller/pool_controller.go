@@ -48,8 +48,10 @@ const (
 // PoolReconciler reconciles a Pool object
 type PoolReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-	Garm   garmclient.Interface
+	// APIReader is a direct (uncached) client for cross-namespace reads.
+	APIReader client.Reader
+	Scheme    *runtime.Scheme
+	Garm      garmclient.Interface
 }
 
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=pools,verbs=get;list;watch;create;update;patch;delete
@@ -227,7 +229,7 @@ func (r *PoolReconciler) resolveTemplateExtraContext(ctx context.Context, poolNa
 				ns = poolNamespace
 			}
 			secret := &corev1.Secret{}
-			if err := r.Get(ctx, types.NamespacedName{Namespace: ns, Name: ref.Name}, secret); err != nil {
+			if err := r.APIReader.Get(ctx, types.NamespacedName{Namespace: ns, Name: ref.Name}, secret); err != nil {
 				if apierrors.IsNotFound(err) {
 					return nil, fmt.Errorf("secret %s/%s not found (referenced by template %q extraContext key %q)", ns, ref.Name, tpl.Name, key)
 				}
