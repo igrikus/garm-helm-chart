@@ -54,6 +54,31 @@ type SecretKeyRef struct {
 	Key  string `json:"key"`
 }
 
+// NamespacedSecretKeyRef references a single key inside a Secret, optionally in another namespace.
+type NamespacedSecretKeyRef struct {
+	Name string `json:"name"`
+	Key  string `json:"key"`
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+}
+
+// ExtraContextEntry defines a value for extra_context, either inline or from a Secret.
+type ExtraContextEntry struct {
+	// Value is a plain-text value. Mutually exclusive with ValueFrom.
+	// +optional
+	Value string `json:"value,omitempty"`
+	// ValueFrom references an external source for the value.
+	// +optional
+	ValueFrom *ExtraContextValueSource `json:"valueFrom,omitempty"`
+}
+
+// ExtraContextValueSource selects the source of an extra_context value.
+type ExtraContextValueSource struct {
+	// SecretKeyRef selects a key from a Kubernetes Secret.
+	// +optional
+	SecretKeyRef *NamespacedSecretKeyRef `json:"secretKeyRef,omitempty"`
+}
+
 // CommonStatus carries the bookkeeping fields every reconciler writes back.
 type CommonStatus struct {
 	// ID is the GARM-assigned UUID. Empty before the first successful sync.

@@ -21,6 +21,7 @@ import (
 	"time"
 	"unicode"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,8 +48,10 @@ const (
 // PoolReconciler reconciles a Pool object
 type PoolReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-	Garm   garmclient.Interface
+	// APIReader is a direct (uncached) client for cross-namespace reads.
+	APIReader client.Reader
+	Scheme    *runtime.Scheme
+	Garm      garmclient.Interface
 }
 
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=pools,verbs=get;list;watch;create;update;patch;delete
@@ -59,6 +62,7 @@ type PoolReconciler struct {
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=repositories;enterprises,verbs=get;list;watch
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=runners,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=garm.igrikus.dev,resources=runners/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 
 func (r *PoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
@@ -82,12 +86,12 @@ func (r *PoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return r.markPoolFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss, err)
 	}
 
-	templateID, err := r.resolveRunnerTemplate(ctx, obj)
+	templateID, extraContext, err := r.resolveRunnerTemplate(ctx, obj)
 	if err != nil {
 		return r.markPoolFalse(ctx, obj, garmv1alpha1.ReasonReferenceMiss, err)
 	}
 
-	desired := buildPoolCreate(&obj.Spec, obj.Spec.Image, templateID)
+	desired := buildPoolCreate(&obj.Spec, obj.Spec.Image, templateID, extraContext)
 
 	if obj.Status.ID == "" {
 		id, err := r.adoptOrCreatePool(ctx, obj.Spec.ScopeRef.Kind, scopeID, desired)
@@ -182,30 +186,65 @@ func (r *PoolReconciler) resolvePoolScope(ctx context.Context, obj *garmv1alpha1
 	}
 }
 
-func (r *PoolReconciler) resolveRunnerTemplate(ctx context.Context, obj *garmv1alpha1.Pool) (uint, error) {
+func (r *PoolReconciler) resolveRunnerTemplate(ctx context.Context, obj *garmv1alpha1.Pool) (uint, map[string]string, error) {
 	if obj.Spec.RunnerInstallTemplateRef == nil || obj.Spec.RunnerInstallTemplateRef.Name == "" {
-		return 0, nil
+		return 0, nil, nil
 	}
 	name := obj.Spec.RunnerInstallTemplateRef.Name
 	tpl := &garmv1alpha1.RunnerTemplate{}
 	if err := r.Get(ctx, types.NamespacedName{Namespace: obj.Namespace, Name: name}, tpl); err != nil {
 		if apierrors.IsNotFound(err) {
-			return 0, fmt.Errorf("runner template %s/%s not found", obj.Namespace, name)
+			return 0, nil, fmt.Errorf("runner template %s/%s not found", obj.Namespace, name)
 		}
-		return 0, err
+		return 0, nil, err
 	}
 	if tpl.Status.ID == "" {
-		return 0, fmt.Errorf("runner template %s/%s not yet reconciled", obj.Namespace, name)
+		return 0, nil, fmt.Errorf("runner template %s/%s not yet reconciled", obj.Namespace, name)
 	}
 	ready := meta.FindStatusCondition(tpl.Status.Conditions, garmv1alpha1.ConditionReady)
 	if ready == nil || ready.Status != metav1.ConditionTrue {
-		return 0, fmt.Errorf("runner template %s/%s is not ready", obj.Namespace, name)
+		return 0, nil, fmt.Errorf("runner template %s/%s is not ready", obj.Namespace, name)
 	}
 	id, err := strconv.ParseUint(tpl.Status.ID, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("runner template %s/%s has invalid status id %q", obj.Namespace, name, tpl.Status.ID)
+		return 0, nil, fmt.Errorf("runner template %s/%s has invalid status id %q", obj.Namespace, name, tpl.Status.ID)
 	}
-	return uint(id), nil
+	extraCtx, err := r.resolveTemplateExtraContext(ctx, obj.Namespace, tpl)
+	if err != nil {
+		return 0, nil, err
+	}
+	return uint(id), extraCtx, nil
+}
+
+func (r *PoolReconciler) resolveTemplateExtraContext(ctx context.Context, poolNamespace string, tpl *garmv1alpha1.RunnerTemplate) (map[string]string, error) {
+	if len(tpl.Spec.ExtraContext) == 0 {
+		return nil, nil
+	}
+	result := make(map[string]string, len(tpl.Spec.ExtraContext))
+	for key, entry := range tpl.Spec.ExtraContext {
+		if entry.ValueFrom != nil && entry.ValueFrom.SecretKeyRef != nil {
+			ref := entry.ValueFrom.SecretKeyRef
+			ns := ref.Namespace
+			if ns == "" {
+				ns = poolNamespace
+			}
+			secret := &corev1.Secret{}
+			if err := r.APIReader.Get(ctx, types.NamespacedName{Namespace: ns, Name: ref.Name}, secret); err != nil {
+				if apierrors.IsNotFound(err) {
+					return nil, fmt.Errorf("secret %s/%s not found (referenced by template %q extraContext key %q)", ns, ref.Name, tpl.Name, key)
+				}
+				return nil, err
+			}
+			val, ok := secret.Data[ref.Key]
+			if !ok {
+				return nil, fmt.Errorf("key %q not found in secret %s/%s (referenced by template %q extraContext key %q)", ref.Key, ns, ref.Name, tpl.Name, key)
+			}
+			result[key] = string(val)
+		} else {
+			result[key] = entry.Value
+		}
+	}
+	return result, nil
 }
 
 func (r *PoolReconciler) adoptOrCreatePool(ctx context.Context, scopeKind, scopeID string, desired garmclient.PoolCreate) (string, error) {
@@ -445,7 +484,7 @@ func dnsLabel(in string) string {
 	return strings.Trim(b.String(), "-")
 }
 
-func buildPoolCreate(s *garmv1alpha1.PoolSpec, imageTag string, templateID uint) garmclient.PoolCreate {
+func buildPoolCreate(s *garmv1alpha1.PoolSpec, imageTag string, templateID uint, extraContext map[string]string) garmclient.PoolCreate {
 	osType := string(s.OSType)
 	if osType == "" {
 		osType = "linux"
@@ -475,6 +514,33 @@ func buildPoolCreate(s *garmv1alpha1.PoolSpec, imageTag string, templateID uint)
 	if s.ExtraSpecs != nil && len(s.ExtraSpecs.Raw) > 0 {
 		out.ExtraSpecs = json.RawMessage(s.ExtraSpecs.Raw)
 	}
+	if len(extraContext) > 0 {
+		out.ExtraSpecs = mergeExtraContext(out.ExtraSpecs, extraContext)
+	}
+	return out
+}
+
+// mergeExtraContext injects template-level extra_context into the pool's extraSpecs JSON.
+// Pool-level extra_context keys (already in raw) take precedence over template values.
+func mergeExtraContext(raw json.RawMessage, templateCtx map[string]string) json.RawMessage {
+	var specs map[string]any
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &specs); err != nil {
+			specs = map[string]any{}
+		}
+	} else {
+		specs = map[string]any{}
+	}
+	poolCtx, _ := specs["extra_context"].(map[string]any)
+	merged := make(map[string]any, len(templateCtx)+len(poolCtx))
+	for k, v := range templateCtx {
+		merged[k] = v
+	}
+	for k, v := range poolCtx {
+		merged[k] = v
+	}
+	specs["extra_context"] = merged
+	out, _ := json.Marshal(specs)
 	return out
 }
 

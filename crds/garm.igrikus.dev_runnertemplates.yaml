@@ -64,6 +64,40 @@ spec:
                 type: string
               description:
                 type: string
+              extraContext:
+                additionalProperties:
+                  description: ExtraContextEntry defines a value for extra_context,
+                    either inline or from a Secret.
+                  properties:
+                    value:
+                      description: Value is a plain-text value. Mutually exclusive
+                        with ValueFrom.
+                      type: string
+                    valueFrom:
+                      description: ValueFrom references an external source for the
+                        value.
+                      properties:
+                        secretKeyRef:
+                          description: SecretKeyRef selects a key from a Kubernetes
+                            Secret.
+                          properties:
+                            key:
+                              type: string
+                            name:
+                              type: string
+                            namespace:
+                              type: string
+                          required:
+                          - key
+                          - name
+                          type: object
+                      type: object
+                  type: object
+                description: |-
+                  ExtraContext defines key-value pairs injected into extraSpecs.extra_context
+                  for every pool that references this template. Values can be inline or resolved
+                  from Kubernetes Secrets. Pool-level extra_context keys take precedence.
+                type: object
               forgeType:
                 description: ForgeType is the forge family a runner template is valid
                   for.

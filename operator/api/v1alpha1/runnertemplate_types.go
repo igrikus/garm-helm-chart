@@ -28,6 +28,12 @@ type RunnerTemplateSpec struct {
 	ForgeType ForgeType `json:"forgeType"`
 
 	Data string `json:"data"`
+
+	// ExtraContext defines key-value pairs injected into extraSpecs.extra_context
+	// for every pool that references this template. Values can be inline or resolved
+	// from Kubernetes Secrets. Pool-level extra_context keys take precedence.
+	// +optional
+	ExtraContext map[string]ExtraContextEntry `json:"extraContext,omitempty"`
 }
 
 // RunnerTemplateStatus reports observed template state.
