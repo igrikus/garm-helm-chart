@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.2.0](https://github.com/igrikus/garm-helm-chart/compare/v4.1.3...v4.2.0) (2026-05-11)
+
+
+### Features
+
+* default extra_context for runner templates ([#9](https://github.com/igrikus/garm-helm-chart/issues/9)) ([386ccdc](https://github.com/igrikus/garm-helm-chart/commit/386ccdc7831adc47f58678139594920b6f422c16))
+
 ## [4.1.3](https://github.com/igrikus/garm-helm-chart/compare/v4.1.2...v4.1.3) (2026-05-08)
 
 
